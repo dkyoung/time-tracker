@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Time Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="row between center">
+      <div>
+        <h1>Time Tracker</h1>
+        <p class="muted" id="todayLabel"></p>
+      </div>
+
+      <div class="row gap center">
+        <button id="btnExport" class="secondary">Export JSON</button>
+        <button id="btnClear" class="danger">Clear All</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Controls</h2>
+      <div class="grid">
+        <button id="btnClockIn" class="primary">Clock In</button>
+        <button id="btnClockOut" class="primary">Clock Out</button>
+
+        <button id="btnBreak15" class="secondary">Break 15</button>
+        <button id="btnBreak30" class="secondary">Break 30</button>
+        <button id="btnBreak60" class="secondary">Lunch 60</button>
+      </div>
+
+      <div class="row gap wrap mt">
+        <div class="pill">Status: <strong id="statusText">Idle</strong></div>
+        <div class="pill">Active Session: <strong id="activeSessionText">None</strong></div>
+      </div>
+
+      <p class="muted mt">
+        Stored locally in your browser (localStorage). Later we can anchor daily totals to Web3.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Today</h2>
+      <div class="row gap wrap">
+        <div class="stat">
+          <div class="label">Worked (gross)</div>
+          <div class="value" id="todayGross">0.00</div>
+          <div class="hint">Hours</div>
+        </div>
+        <div class="stat">
+          <div class="label">Breaks</div>
+          <div class="value" id="todayBreaks">0.00</div>
+          <div class="hint">Hours</div>
+        </div>
+        <div class="stat">
+          <div class="label">Worked (net)</div>
+          <div class="value" id="todayNet">0.00</div>
+          <div class="hint">Hours</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Totals</h2>
+      <div class="row gap wrap">
+        <div class="stat">
+          <div class="label">This Week</div>
+          <div class="value" id="weekNet">0.00</div>
+          <div class="hint">Net hours</div>
+        </div>
+        <div class="stat">
+          <div class="label">This Month</div>
+          <div class="value" id="monthNet">0.00</div>
+          <div class="hint">Net hours</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Log</h2>
+      <div class="row between center">
+        <p class="muted">Newest first</p>
+        <button id="btnSeedDemo" class="secondary">Seed Demo Entries</button>
+      </div>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
