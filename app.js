@@ -32,7 +32,27 @@ function uid() { return Math.random().toString(16).slice(2) + "-" + Math.random(
 
 function formatDate(ts) {
   const d = new Date(ts);
-  return d.toLocaleString(undefined, { year:"numeric", month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit" });
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+/**
+ * Formats the "Today" label like: <Thursday, February 26, 2026>
+ */
+function formatTodayLabel(ts = nowTs()) {
+  const d = new Date(ts);
+  const formatted = d.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `<${formatted}>`;
 }
 
 function dayKey(ts = nowTs()) {
@@ -46,14 +66,14 @@ function dayKey(ts = nowTs()) {
 function startOfWeekTs(ts = nowTs()) {
   const d = new Date(ts);
   const day = (d.getDay() + 6) % 7; // Mon=0
-  d.setHours(0,0,0,0);
+  d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - day);
   return d.getTime();
 }
 
 function startOfMonthTs(ts = nowTs()) {
   const d = new Date(ts);
-  d.setHours(0,0,0,0);
+  d.setHours(0, 0, 0, 0);
   d.setDate(1);
   return d.getTime();
 }
@@ -111,7 +131,7 @@ function computeNetMinutesForDay(state, dayStr) {
 function computeNetMinutesBetween(state, startTs, endTsExclusive) {
   let total = 0;
   const cur = new Date(startTs);
-  cur.setHours(0,0,0,0);
+  cur.setHours(0, 0, 0, 0);
 
   while (cur.getTime() < endTsExclusive) {
     total += computeNetMinutesForDay(state, dayKey(cur.getTime()));
@@ -134,7 +154,10 @@ function setStatus(state) {
 
 function renderTotals(state) {
   const today = dayKey();
-  els.todayLabel.textContent = `Today: ${today}`;
+
+  // Updated "Today" label format:
+  // <Thursday, February 26, 2026>
+  els.todayLabel.textContent = formatTodayLabel();
 
   const grossMin = computeDayGrossMinutes(state, today);
   const breakMin = computeDayBreakMinutes(state, today);
