@@ -23,7 +23,20 @@
     </header>
 
     <section class="card">
-      <h2 class="sectionTitle">Controls</h2>
+      <div class="controlsHeader">
+        <h2 class="sectionTitle">Controls</h2>
+
+        <div class="fontCtl" title="Adjust overall UI size">
+          <label class="fontLabel" for="fontScale">Font Size</label>
+          <select id="fontScale" class="select">
+            <option value="0.80">Very Small</option>
+            <option value="0.90">Small</option>
+            <option value="1.00" selected>Medium</option>
+            <option value="1.10">Large</option>
+            <option value="1.20">Very Large</option>
+          </select>
+        </div>
+      </div>
 
       <div class="grid2">
         <button id="btnClockIn" class="btn btnPrimary">Clock In</button>
@@ -55,7 +68,7 @@
     <section class="card">
       <h2 class="sectionTitle">Today</h2>
 
-      <div class="statGrid">
+      <div class="statGrid statGrid3">
         <div class="stat">
           <div class="statLabel">Worked (gross)</div>
           <div class="statValue"><span id="todayGross">0.00</span></div>
@@ -79,7 +92,7 @@
     <section class="card">
       <h2 class="sectionTitle">Totals</h2>
 
-      <div class="statGrid">
+      <div class="statGrid statGrid2">
         <div class="stat">
           <div class="statLabel">This Week</div>
           <div class="statValue"><span id="weekNet">0.00</span></div>
@@ -105,7 +118,7 @@
     </section>
 
     <footer class="footer muted small">
-      v1 — single-break-plan (15 / 30 / 15) + live timer
+      v1 — break plan (15 / 30 / 15) + live timer + font size control
     </footer>
   </main>
 
