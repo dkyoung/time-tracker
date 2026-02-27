@@ -1,6 +1,7 @@
 "use strict";
 
 const STORAGE_KEY = "tt_v1";
+const UI_SCALE_KEY = "tt_ui_scale";
 
 /**
  * Break plan: 15 -> 30 (lunch) -> 15
@@ -36,18 +37,20 @@ const els = {
   btnExport: document.getElementById("btnExport"),
   btnClearAll: document.getElementById("btnClearAll"),
   btnSeed: document.getElementById("btnSeed"),
+
+  fontScale: document.getElementById("fontScale"),
 };
 
 let state = loadState();
 let ticker = null;
 
 boot();
+applySavedUiScale();
 render();
 
 /* ----------------------------- Boot / Wiring ----------------------------- */
 
 function boot() {
-  // Keep the date label live-ish (it updates on render anyway)
   startTicker();
 
   els.btnClockIn.addEventListener("click", onClockIn);
@@ -59,6 +62,31 @@ function boot() {
   els.btnExport.addEventListener("click", exportJSON);
   els.btnClearAll.addEventListener("click", clearAll);
   els.btnSeed.addEventListener("click", seedDemoEntries);
+
+  els.fontScale.addEventListener("change", onUiScaleChange);
+}
+
+/* ----------------------------- UI scale --------------------------------- */
+
+function applySavedUiScale() {
+  const saved = localStorage.getItem(UI_SCALE_KEY);
+  const scale = clampScale(saved ? Number(saved) : 1);
+
+  document.documentElement.style.setProperty("--ui-scale", String(scale));
+  els.fontScale.value = String(scale);
+}
+
+function onUiScaleChange() {
+  const scale = clampScale(Number(els.fontScale.value));
+  document.documentElement.style.setProperty("--ui-scale", String(scale));
+  localStorage.setItem(UI_SCALE_KEY, String(scale));
+}
+
+function clampScale(n) {
+  // Allowed set only
+  const allowed = new Set([0.80, 0.90, 1.00, 1.10, 1.20]);
+  if (allowed.has(n)) return n;
+  return 1.00;
 }
 
 /* ----------------------------- State model ------------------------------ */
@@ -69,11 +97,6 @@ function boot() {
  *   activeBreak: { id, sessionId, startMs, plannedMinutes, label, kind } | null,
  *   breakIndex: number, // 0..BREAK_PLAN.length
  * }
- *
- * Entry (logged):
- *  - Work entry: {id,type:"work",startMs,endMs,sessionId,label}
- *  - Break entry:{id,type:"break",startMs,endMs,minutes,plannedMinutes,sessionId,label,kind}
- *  - Event entry:{id,type:"event",tsMs,label}
  */
 
 function newDefaultState() {
@@ -91,7 +114,6 @@ function loadState() {
     if (!raw) return newDefaultState();
     const parsed = JSON.parse(raw);
 
-    // Basic hardening
     if (!parsed || typeof parsed !== "object") return newDefaultState();
     parsed.entries = Array.isArray(parsed.entries) ? parsed.entries : [];
     parsed.activeSession = parsed.activeSession ?? null;
@@ -206,7 +228,6 @@ function onEndBreak() {
 
   const endMs = Date.now();
   const startMs = state.activeBreak.startMs;
-
   const actualMinutes = Math.max(1, Math.round((endMs - startMs) / 60000));
 
   state.entries.unshift({
@@ -215,10 +236,10 @@ function onEndBreak() {
     sessionId: state.activeBreak.sessionId,
     startMs,
     endMs,
-    minutes: actualMinutes,                 // actual
-    plannedMinutes: state.activeBreak.plannedMinutes, // planned 15/30/15
+    minutes: actualMinutes,
+    plannedMinutes: state.activeBreak.plannedMinutes,
     label: state.activeBreak.label,
-    kind: state.activeBreak.kind,           // break/lunch
+    kind: state.activeBreak.kind,
   });
 
   state.entries.unshift({
@@ -238,10 +259,8 @@ function onEndBreak() {
 /* ----------------------------- Rendering -------------------------------- */
 
 function render() {
-  // Header date label
   els.todayLabel.textContent = `<${formatLongDate(new Date())}>`;
 
-  // Status + Active session text + Next break text
   const status = getStatus();
   els.statusText.textContent = status;
 
@@ -253,7 +272,6 @@ function render() {
 
   els.nextBreakText.textContent = getNextBreakText();
 
-  // Buttons
   const working = !!state.activeSession;
   const onBreak = !!state.activeBreak;
 
@@ -263,10 +281,8 @@ function render() {
   els.btnStartBreak.disabled = !working || onBreak || state.breakIndex >= BREAK_PLAN.length;
   els.btnEndBreak.disabled = !onBreak;
 
-  // Live timer update now (ticker updates every second too)
   updateRunningTimer();
 
-  // Totals
   const now = Date.now();
 
   const today = new Date();
@@ -290,7 +306,6 @@ function render() {
   const monthTotals = calcTotalsBetween(monthStart, monthEnd, now);
   els.monthNet.textContent = monthTotals.netHours.toFixed(2);
 
-  // Log
   renderLog();
 }
 
@@ -409,36 +424,26 @@ function fmtHMS(totalSeconds) {
 /* ----------------------------- Totals ----------------------------------- */
 
 function calcTotalsBetween(rangeStartMs, rangeEndMs, nowMs) {
-  // Work entries (completed sessions)
   let workMs = 0;
   for (const e of state.entries) {
     if (e.type !== "work") continue;
-    const overlap = overlapMs(e.startMs, e.endMs, rangeStartMs, rangeEndMs);
-    workMs += overlap;
+    workMs += overlapMs(e.startMs, e.endMs, rangeStartMs, rangeEndMs);
   }
 
-  // Add live session time if active and overlaps range
   if (state.activeSession) {
-    const overlap = overlapMs(state.activeSession.startMs, nowMs, rangeStartMs, rangeEndMs);
-    workMs += overlap;
+    workMs += overlapMs(state.activeSession.startMs, nowMs, rangeStartMs, rangeEndMs);
   }
 
-  // Break entries
   let breakMs = 0;
   for (const e of state.entries) {
     if (e.type !== "break") continue;
-    const overlap = overlapMs(e.startMs, e.endMs, rangeStartMs, rangeEndMs);
-    breakMs += overlap;
+    breakMs += overlapMs(e.startMs, e.endMs, rangeStartMs, rangeEndMs);
   }
 
-  // Add live break if active and overlaps range
   if (state.activeBreak) {
-    const overlap = overlapMs(state.activeBreak.startMs, nowMs, rangeStartMs, rangeEndMs);
-    breakMs += overlap;
+    breakMs += overlapMs(state.activeBreak.startMs, nowMs, rangeStartMs, rangeEndMs);
   }
 
-  // Gross is work time, but if you’re on break, the live work timer still runs.
-  // Net is work minus breaks (this matches your UI expectations).
   const grossHours = workMs / 3600000;
   const breakHours = breakMs / 3600000;
   const netHours = Math.max(0, grossHours - breakHours);
@@ -460,12 +465,11 @@ function startOfDayMs(d) {
   return x.getTime();
 }
 
-// Week starts Monday (your preference)
 function startOfWeekMondayMs(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   const day = x.getDay(); // 0=Sun..6=Sat
-  const diffToMonday = (day === 0) ? 6 : (day - 1); // Sun -> 6, Mon -> 0
+  const diffToMonday = (day === 0) ? 6 : (day - 1);
   x.setDate(x.getDate() - diffToMonday);
   return x.getTime();
 }
@@ -510,7 +514,9 @@ function exportJSON() {
   const data = {
     exportedAt: new Date().toISOString(),
     state,
+    uiScale: localStorage.getItem(UI_SCALE_KEY) ?? "1",
   };
+
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
@@ -542,12 +548,12 @@ function seedDemoEntries() {
   const now = Date.now();
   const sessionId = crypto.randomUUID();
 
-  // Demo: clock in 2h 20m ago, break 15m, back to work
   const clockInMs = now - (2 * 60 + 20) * 60000;
   const breakStart = now - (1 * 60 + 5) * 60000;
   const breakEnd = breakStart + 15 * 60000;
 
   state.entries.unshift({ id: crypto.randomUUID(), type: "event", tsMs: clockInMs, label: "Clock In" });
+
   state.entries.unshift({
     id: crypto.randomUUID(),
     type: "break",
@@ -559,6 +565,7 @@ function seedDemoEntries() {
     label: "Break 1 (15 min)",
     kind: "break",
   });
+
   state.entries.unshift({ id: crypto.randomUUID(), type: "event", tsMs: breakStart, label: "Start Break 1 (15 min)" });
   state.entries.unshift({ id: crypto.randomUUID(), type: "event", tsMs: breakEnd, label: "End Break 1 (15 min) (15 min)" });
 
