@@ -7,85 +7,106 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="container">
-    <header class="row between center">
+  <main class="wrap">
+    <header class="top">
       <div>
-        <h1>Time Tracker</h1>
-        <p class="muted" id="todayLabel"></p>
+        <h1 class="title">Time Tracker</h1>
+        <div class="sub">
+          <span id="todayLabel">&lt;—&gt;</span>
+        </div>
       </div>
 
-      <div class="row gap center">
-        <button id="btnExport" class="secondary">Export JSON</button>
-        <button id="btnClear" class="danger">Clear All</button>
+      <div class="topActions">
+        <button id="btnExport" class="btn btnGhost">Export JSON</button>
+        <button id="btnClearAll" class="btn btnDanger">Clear All</button>
       </div>
     </header>
 
     <section class="card">
-      <h2>Controls</h2>
-      <div class="grid">
-        <button id="btnClockIn" class="primary">Clock In</button>
-        <button id="btnClockOut" class="primary">Clock Out</button>
+      <h2 class="sectionTitle">Controls</h2>
 
-        <button id="btnBreak15" class="secondary">Break 15</button>
-        <button id="btnBreak30" class="secondary">Break 30</button>
-        <button id="btnBreak60" class="secondary">Lunch 60</button>
+      <div class="grid2">
+        <button id="btnClockIn" class="btn btnPrimary">Clock In</button>
+        <button id="btnClockOut" class="btn btnPrimary2" disabled>Clock Out</button>
+
+        <button id="btnStartBreak" class="btn btnGhost" disabled>Start Break</button>
+        <button id="btnEndBreak" class="btn btnGhost" disabled>End Break</button>
       </div>
 
-      <div class="row gap wrap mt">
-        <div class="pill">Status: <strong id="statusText">Idle</strong></div>
-        <div class="pill">Active Session: <strong id="activeSessionText">None</strong></div>
+      <div class="statusRow">
+        <div class="pill">
+          <span>Status:</span> <strong id="statusText">Off</strong>
+        </div>
+
+        <div class="pill">
+          <span>Timer:</span> <strong id="runningTimer">00:00:00</strong>
+        </div>
       </div>
 
-      <p class="muted mt">
-        Stored locally in your browser (localStorage). Later we can anchor daily totals to Web3.
-      </p>
-    </section>
-
-    <section class="card">
-      <h2>Today</h2>
-      <div class="row gap wrap">
-        <div class="stat">
-          <div class="label">Worked (gross)</div>
-          <div class="value" id="todayGross">0.00</div>
-          <div class="hint">Hours</div>
-        </div>
-        <div class="stat">
-          <div class="label">Breaks</div>
-          <div class="value" id="todayBreaks">0.00</div>
-          <div class="hint">Hours</div>
-        </div>
-        <div class="stat">
-          <div class="label">Worked (net)</div>
-          <div class="value" id="todayNet">0.00</div>
-          <div class="hint">Hours</div>
+      <div class="activeBox">
+        <div class="activeLine"><span>Active Session:</span> <strong id="activeSessionText">—</strong></div>
+        <div class="muted" id="nextBreakText">Next break: —</div>
+        <div class="muted small">
+          Stored locally in your browser (localStorage). Later we can anchor daily totals to Web3.
         </div>
       </div>
     </section>
 
     <section class="card">
-      <h2>Totals</h2>
-      <div class="row gap wrap">
+      <h2 class="sectionTitle">Today</h2>
+
+      <div class="statGrid">
         <div class="stat">
-          <div class="label">This Week</div>
-          <div class="value" id="weekNet">0.00</div>
-          <div class="hint">Net hours</div>
+          <div class="statLabel">Worked (gross)</div>
+          <div class="statValue"><span id="todayGross">0.00</span></div>
+          <div class="statUnit">Hours</div>
         </div>
+
         <div class="stat">
-          <div class="label">This Month</div>
-          <div class="value" id="monthNet">0.00</div>
-          <div class="hint">Net hours</div>
+          <div class="statLabel">Breaks</div>
+          <div class="statValue"><span id="todayBreaks">0.00</span></div>
+          <div class="statUnit">Hours</div>
+        </div>
+
+        <div class="stat">
+          <div class="statLabel">Worked (net)</div>
+          <div class="statValue"><span id="todayNet">0.00</span></div>
+          <div class="statUnit">Hours</div>
         </div>
       </div>
     </section>
 
     <section class="card">
-      <h2>Log</h2>
-      <div class="row between center">
-        <p class="muted">Newest first</p>
-        <button id="btnSeedDemo" class="secondary">Seed Demo Entries</button>
+      <h2 class="sectionTitle">Totals</h2>
+
+      <div class="statGrid">
+        <div class="stat">
+          <div class="statLabel">This Week</div>
+          <div class="statValue"><span id="weekNet">0.00</span></div>
+          <div class="statUnit">Net hours</div>
+        </div>
+
+        <div class="stat">
+          <div class="statLabel">This Month</div>
+          <div class="statValue"><span id="monthNet">0.00</span></div>
+          <div class="statUnit">Net hours</div>
+        </div>
       </div>
+    </section>
+
+    <section class="card">
+      <div class="logHeader">
+        <h2 class="sectionTitle">Log</h2>
+        <button id="btnSeed" class="btn btnGhostSmall">Seed Demo Entries</button>
+      </div>
+
+      <div class="muted">Newest first</div>
       <div id="log" class="log"></div>
     </section>
+
+    <footer class="footer muted small">
+      v1 — single-break-plan (15 / 30 / 15) + live timer
+    </footer>
   </main>
 
   <script src="app.js"></script>
