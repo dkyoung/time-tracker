@@ -6,121 +6,82 @@
   <title>Time Tracker</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
-  <main class="wrap">
-    <header class="top">
-      <div>
-        <h1 class="title">Time Tracker</h1>
-        <div class="sub">
-          <span id="todayLabel">&lt;—&gt;</span>
-        </div>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title">Time Tracker</div>
+        <div id="todayLabel" class="brand-subtitle">—</div>
       </div>
 
-      <div class="topActions">
-        <button id="btnExport" class="btn btnGhost">Export JSON</button>
-        <button id="btnClearAll" class="btn btnDanger">Clear All</button>
-      </div>
+      <nav class="tabs" aria-label="App tabs">
+        <button id="tabDashboard" class="tab is-active" type="button" aria-selected="true">Dashboard</button>
+        <button id="tabLogs" class="tab" type="button" aria-selected="false">Logs</button>
+      </nav>
     </header>
 
-    <section class="card">
-      <div class="controlsHeader">
-        <h2 class="sectionTitle">Controls</h2>
+    <!-- DASHBOARD TAB -->
+    <main id="dashboardPanel" class="panel is-active" role="tabpanel">
+      <section class="hero">
+        <div class="hero-left">
+          <div class="timer-wrap">
+            <div class="timer-label">Running Timer</div>
+            <div id="bigTimer" class="big-timer">00:00:00</div>
+            <div id="statusText" class="status-text">Not clocked in</div>
+            <div id="activeSessionText" class="active-session-text">—</div>
+          </div>
 
-        <div class="fontCtl" title="Adjust overall UI size">
-          <label class="fontLabel" for="fontScale">Font Size</label>
-          <select id="fontScale" class="select">
-            <option value="0.80">Very Small</option>
-            <option value="0.90">Small</option>
-            <option value="1.00" selected>Medium</option>
-            <option value="1.10">Large</option>
-            <option value="1.20">Very Large</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="grid2">
-        <button id="btnClockIn" class="btn btnPrimary">Clock In</button>
-        <button id="btnClockOut" class="btn btnPrimary2" disabled>Clock Out</button>
-
-        <button id="btnStartBreak" class="btn btnGhost" disabled>Start Break</button>
-        <button id="btnEndBreak" class="btn btnGhost" disabled>End Break</button>
-      </div>
-
-      <div class="statusRow">
-        <div class="pill">
-          <span>Status:</span> <strong id="statusText">Off</strong>
+          <div class="controls">
+            <button id="btnClockIn" class="btn primary" type="button">Clock In</button>
+            <button id="btnClockOut" class="btn" type="button">Clock Out</button>
+          </div>
         </div>
 
-        <div class="pill">
-          <span>Timer:</span> <strong id="runningTimer">00:00:00</strong>
+        <div class="hero-right">
+          <div class="cards">
+            <div class="card">
+              <div class="card-title">Today (Gross)</div>
+              <div id="todayGross" class="card-value">0:00</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Today (Breaks)</div>
+              <div id="todayBreaks" class="card-value">0:00</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Today (Net)</div>
+              <div id="todayNet" class="card-value">0:00</div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Week (Net)</div>
+              <div id="weekNet" class="card-value">0:00</div>
+            </div>
+            <div class="card">
+              <div class="card-title">Month (Net)</div>
+              <div id="monthNet" class="card-value">0:00</div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+    </main>
 
-      <div class="activeBox">
-        <div class="activeLine"><span>Active Session:</span> <strong id="activeSessionText">—</strong></div>
-        <div class="muted" id="nextBreakText">Next break: —</div>
-        <div class="muted small">
-          Stored locally in your browser (localStorage). Later we can anchor daily totals to Web3.
-        </div>
-      </div>
-    </section>
+    <!-- LOGS TAB -->
+    <main id="logsPanel" class="panel" role="tabpanel">
+      <section class="logs-head">
+        <h2 class="h2">Session Logs</h2>
+        <div class="muted">Your saved sessions live here (kept in your browser).</div>
+      </section>
 
-    <section class="card">
-      <h2 class="sectionTitle">Today</h2>
+      <section class="logs-body">
+        <div id="log" class="log"></div>
+      </section>
+    </main>
 
-      <div class="statGrid statGrid3">
-        <div class="stat">
-          <div class="statLabel">Worked (gross)</div>
-          <div class="statValue"><span id="todayGross">0.00</span></div>
-          <div class="statUnit">Hours</div>
-        </div>
-
-        <div class="stat">
-          <div class="statLabel">Breaks</div>
-          <div class="statValue"><span id="todayBreaks">0.00</span></div>
-          <div class="statUnit">Hours</div>
-        </div>
-
-        <div class="stat">
-          <div class="statLabel">Worked (net)</div>
-          <div class="statValue"><span id="todayNet">0.00</span></div>
-          <div class="statUnit">Hours</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2 class="sectionTitle">Totals</h2>
-
-      <div class="statGrid statGrid2">
-        <div class="stat">
-          <div class="statLabel">This Week</div>
-          <div class="statValue"><span id="weekNet">0.00</span></div>
-          <div class="statUnit">Net hours</div>
-        </div>
-
-        <div class="stat">
-          <div class="statLabel">This Month</div>
-          <div class="statValue"><span id="monthNet">0.00</span></div>
-          <div class="statUnit">Net hours</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="logHeader">
-        <h2 class="sectionTitle">Log</h2>
-        <button id="btnSeed" class="btn btnGhostSmall">Seed Demo Entries</button>
-      </div>
-
-      <div class="muted">Newest first</div>
-      <div id="log" class="log"></div>
-    </section>
-
-    <footer class="footer muted small">
-      v1 — break plan (15 / 30 / 15) + live timer + font size control
+    <footer class="footer">
+      <div class="muted">Local-only storage · No account required</div>
     </footer>
-  </main>
+  </div>
 
   <script src="app.js"></script>
 </body>
