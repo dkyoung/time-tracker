@@ -135,8 +135,12 @@ function getActiveSession() {
   return state.sessions.find(s => s.endMs == null) || null;
 }
 
-function getActiveBreak() {
-  return state.breaks.find(b => b.endMs == null) || null;
+function getActiveBreak(sessionId = null) {
+  return state.breaks.find((b) => {
+    if (b.endMs != null) return false;
+    if (sessionId == null) return true;
+    return b.sessionId === sessionId || b.sessionId == null;
+  }) || null;
 }
 
 function getPlannedBreakMinutes(sequence) {
@@ -210,7 +214,7 @@ function clockOut() {
   const active = getActiveSession();
   if (!active) return;
 
-  const activeBreak = getActiveBreak();
+  const activeBreak = getActiveBreak(active.id);
   if (activeBreak) {
     activeBreak.endMs = nowMs();
   }
@@ -224,7 +228,7 @@ function startBreak() {
   const activeSession = getActiveSession();
   if (!activeSession) return;
 
-  const activeBreak = getActiveBreak();
+  const activeBreak = getActiveBreak(activeSession.id);
   if (activeBreak) return;
 
   const existingTodayBreaks = countBreaksForDate(new Date());
@@ -234,6 +238,7 @@ function startBreak() {
 
   state.breaks.push({
     id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2),
+    sessionId: activeSession.id,
     startMs: nowMs(),
     endMs: null,
     plannedMinutes,
@@ -245,7 +250,10 @@ function startBreak() {
 }
 
 function endBreak() {
-  const activeBreak = getActiveBreak();
+  const activeSession = getActiveSession();
+  if (!activeSession) return;
+
+  const activeBreak = getActiveBreak(activeSession.id);
   if (!activeBreak) return;
 
   activeBreak.endMs = nowMs();
@@ -301,7 +309,7 @@ function renderHeader() {
 
 function renderButtons() {
   const active = getActiveSession();
-  const activeBreak = getActiveBreak();
+  const activeBreak = active ? getActiveBreak(active.id) : null;
   const todayBreakCount = countBreaksForDate(new Date());
   const allBreaksUsedToday = todayBreakCount >= BREAK_PLAN_MINUTES.length;
 
@@ -313,7 +321,7 @@ function renderButtons() {
 
 function renderStatus() {
   const active = getActiveSession();
-  const activeBreak = getActiveBreak();
+  const activeBreak = active ? getActiveBreak(active.id) : null;
   const todayBreakCount = countBreaksForDate(new Date());
   const nextBreakNumber = todayBreakCount + 1;
 
