@@ -33,6 +33,8 @@ const els = {
   btnClockOut: document.getElementById("btnClockOut"),
   btnStartBreak: document.getElementById("btnStartBreak"),
   btnEndBreak: document.getElementById("btnEndBreak"),
+  btnClearSession: document.getElementById("btnClearSession"),
+  btnClearLogs: document.getElementById("btnClearLogs"),
 };
 
 // ---------------------------
@@ -135,8 +137,12 @@ function getActiveSession() {
   return state.sessions.find(s => s.endMs == null) || null;
 }
 
-function getActiveBreak() {
-  return state.breaks.find(b => b.endMs == null) || null;
+function getActiveBreak(sessionId = null) {
+  return state.breaks.find((b) => {
+    if (b.endMs != null) return false;
+    if (sessionId == null) return true;
+    return b.sessionId === sessionId || b.sessionId == null;
+  }) || null;
 }
 
 function getPlannedBreakMinutes(sequence) {
@@ -210,7 +216,7 @@ function clockOut() {
   const active = getActiveSession();
   if (!active) return;
 
-  const activeBreak = getActiveBreak();
+  const activeBreak = getActiveBreak(active.id);
   if (activeBreak) {
     activeBreak.endMs = nowMs();
   }
@@ -224,7 +230,7 @@ function startBreak() {
   const activeSession = getActiveSession();
   if (!activeSession) return;
 
-  const activeBreak = getActiveBreak();
+  const activeBreak = getActiveBreak(activeSession.id);
   if (activeBreak) return;
 
   const existingTodayBreaks = countBreaksForDate(new Date());
@@ -234,6 +240,7 @@ function startBreak() {
 
   state.breaks.push({
     id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2),
+    sessionId: activeSession.id,
     startMs: nowMs(),
     endMs: null,
     plannedMinutes,
@@ -245,10 +252,35 @@ function startBreak() {
 }
 
 function endBreak() {
-  const activeBreak = getActiveBreak();
+  const activeSession = getActiveSession();
+  if (!activeSession) return;
+
+  const activeBreak = getActiveBreak(activeSession.id);
   if (!activeBreak) return;
 
   activeBreak.endMs = nowMs();
+  saveState(state);
+  renderAll();
+}
+
+function clearCurrentSession() {
+  const activeSession = getActiveSession();
+  if (!activeSession) return;
+
+  state.sessions = state.sessions.filter((s) => s.id !== activeSession.id);
+  state.breaks = state.breaks.filter((b) => {
+    if (b.sessionId === activeSession.id) return false;
+    if (b.sessionId == null && b.endMs == null) return false;
+    return true;
+  });
+
+  saveState(state);
+  renderAll();
+}
+
+function clearLogs() {
+  state.sessions = [];
+  state.breaks = [];
   saveState(state);
   renderAll();
 }
@@ -257,6 +289,8 @@ els.btnClockIn.addEventListener("click", clockIn);
 els.btnClockOut.addEventListener("click", clockOut);
 els.btnStartBreak.addEventListener("click", startBreak);
 els.btnEndBreak.addEventListener("click", endBreak);
+els.btnClearSession.addEventListener("click", clearCurrentSession);
+els.btnClearLogs.addEventListener("click", clearLogs);
 
 // ---------------------------
 // Metrics (gross only for now)
@@ -301,7 +335,7 @@ function renderHeader() {
 
 function renderButtons() {
   const active = getActiveSession();
-  const activeBreak = getActiveBreak();
+  const activeBreak = active ? getActiveBreak(active.id) : null;
   const todayBreakCount = countBreaksForDate(new Date());
   const allBreaksUsedToday = todayBreakCount >= BREAK_PLAN_MINUTES.length;
 
@@ -309,11 +343,13 @@ function renderButtons() {
   els.btnClockOut.disabled = !active;
   els.btnStartBreak.disabled = !active || !!activeBreak || allBreaksUsedToday;
   els.btnEndBreak.disabled = !activeBreak;
+  els.btnClearSession.disabled = !active;
+  els.btnClearLogs.disabled = state.sessions.length === 0 && state.breaks.length === 0;
 }
 
 function renderStatus() {
   const active = getActiveSession();
-  const activeBreak = getActiveBreak();
+  const activeBreak = active ? getActiveBreak(active.id) : null;
   const todayBreakCount = countBreaksForDate(new Date());
   const nextBreakNumber = todayBreakCount + 1;
 
