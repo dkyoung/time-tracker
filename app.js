@@ -1,6 +1,7 @@
 "use strict";
 
 const STORAGE_KEY = "tt_v1";
+const BREAK_PLAN_MINUTES = [15, 30, 15];
 
 const els = {
   // header
@@ -16,6 +17,7 @@ const els = {
   bigTimer: document.getElementById("bigTimer"),
   statusText: document.getElementById("statusText"),
   activeSessionText: document.getElementById("activeSessionText"),
+  breakStatusText: document.getElementById("breakStatusText"),
 
   todayGross: document.getElementById("todayGross"),
   todayBreaks: document.getElementById("todayBreaks"),
@@ -29,6 +31,8 @@ const els = {
   // controls
   btnClockIn: document.getElementById("btnClockIn"),
   btnClockOut: document.getElementById("btnClockOut"),
+  btnStartBreak: document.getElementById("btnStartBreak"),
+  btnEndBreak: document.getElementById("btnEndBreak"),
 };
 
 // ---------------------------
@@ -37,6 +41,7 @@ const els = {
 function defaultState() {
   return {
     sessions: [], // { id, startMs, endMs|null }
+    breaks: [], // { id, startMs, endMs|null, plannedMinutes, sequence }
   };
 }
 
@@ -46,7 +51,12 @@ function loadState() {
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.sessions)) return defaultState();
-    return parsed;
+
+    const next = {
+      sessions: parsed.sessions,
+      breaks: Array.isArray(parsed.breaks) ? parsed.breaks : [],
+    };
+    return next;
   } catch {
     return defaultState();
   }
@@ -125,6 +135,30 @@ function getActiveSession() {
   return state.sessions.find(s => s.endMs == null) || null;
 }
 
+function getActiveBreak() {
+  return state.breaks.find(b => b.endMs == null) || null;
+}
+
+function getPlannedBreakMinutes(sequence) {
+  return BREAK_PLAN_MINUTES[sequence] ?? null;
+}
+
+function getBreakLabel(sequence) {
+  if (sequence === 1) return "First break (15m)";
+  if (sequence === 2) return "Lunch break (30m)";
+  if (sequence === 3) return "Last break (15m)";
+  return "Break";
+}
+
+function countBreaksForDate(d) {
+  const dayStart = startOfDayMs(d);
+  const dayEnd = endOfDayMs(d);
+  return state.breaks.filter((b) => {
+    const ms = b.startMs;
+    return ms >= dayStart && ms <= dayEnd;
+  }).length;
+}
+
 function clampToRange(msStart, msEnd, rangeStart, rangeEnd) {
   const s = Math.max(msStart, rangeStart);
   const e = Math.min(msEnd, rangeEnd);
@@ -176,13 +210,53 @@ function clockOut() {
   const active = getActiveSession();
   if (!active) return;
 
+  const activeBreak = getActiveBreak();
+  if (activeBreak) {
+    activeBreak.endMs = nowMs();
+  }
+
   active.endMs = nowMs();
+  saveState(state);
+  renderAll();
+}
+
+function startBreak() {
+  const activeSession = getActiveSession();
+  if (!activeSession) return;
+
+  const activeBreak = getActiveBreak();
+  if (activeBreak) return;
+
+  const existingTodayBreaks = countBreaksForDate(new Date());
+  const sequence = existingTodayBreaks + 1;
+  const plannedMinutes = getPlannedBreakMinutes(sequence - 1);
+  if (plannedMinutes == null) return;
+
+  state.breaks.push({
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2),
+    startMs: nowMs(),
+    endMs: null,
+    plannedMinutes,
+    sequence,
+  });
+
+  saveState(state);
+  renderAll();
+}
+
+function endBreak() {
+  const activeBreak = getActiveBreak();
+  if (!activeBreak) return;
+
+  activeBreak.endMs = nowMs();
   saveState(state);
   renderAll();
 }
 
 els.btnClockIn.addEventListener("click", clockIn);
 els.btnClockOut.addEventListener("click", clockOut);
+els.btnStartBreak.addEventListener("click", startBreak);
+els.btnEndBreak.addEventListener("click", endBreak);
 
 // ---------------------------
 // Metrics (gross only for now)
@@ -200,7 +274,14 @@ function grossInRangeMs(rangeStart, rangeEnd) {
 
 // Placeholder until your break logic is plugged in.
 function breaksInRangeMs(_rangeStart, _rangeEnd) {
-  return 0;
+  let total = 0;
+  for (const b of state.breaks) {
+    const bStart = b.startMs;
+    const bEnd = (b.endMs == null ? nowMs() : b.endMs);
+    if (bEnd < _rangeStart || bStart > _rangeEnd) continue;
+    total += clampToRange(bStart, bEnd, _rangeStart, _rangeEnd);
+  }
+  return total;
 }
 
 function netInRangeMs(rangeStart, rangeEnd) {
@@ -220,21 +301,47 @@ function renderHeader() {
 
 function renderButtons() {
   const active = getActiveSession();
+  const activeBreak = getActiveBreak();
+  const todayBreakCount = countBreaksForDate(new Date());
+  const allBreaksUsedToday = todayBreakCount >= BREAK_PLAN_MINUTES.length;
+
   els.btnClockIn.disabled = !!active;
   els.btnClockOut.disabled = !active;
+  els.btnStartBreak.disabled = !active || !!activeBreak || allBreaksUsedToday;
+  els.btnEndBreak.disabled = !activeBreak;
 }
 
 function renderStatus() {
   const active = getActiveSession();
+  const activeBreak = getActiveBreak();
+  const todayBreakCount = countBreaksForDate(new Date());
+  const nextBreakNumber = todayBreakCount + 1;
+
   if (!active) {
     els.statusText.textContent = "Not clocked in";
     els.activeSessionText.textContent = "—";
+    els.breakStatusText.textContent = "Breaks available after you clock in.";
     return;
   }
 
   els.statusText.textContent = "Clocked in";
   const started = new Date(active.startMs);
   els.activeSessionText.textContent = `Started: ${started.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
+  if (activeBreak) {
+    const startedBreak = new Date(activeBreak.startMs);
+    const breakLabel = getBreakLabel(activeBreak.sequence);
+    els.breakStatusText.textContent = `${breakLabel} started at ${startedBreak.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    return;
+  }
+
+  const nextMinutes = getPlannedBreakMinutes(todayBreakCount);
+  if (nextMinutes == null) {
+    els.breakStatusText.textContent = "All planned breaks for today are completed.";
+    return;
+  }
+  const nextLabel = getBreakLabel(nextBreakNumber);
+  els.breakStatusText.textContent = `Next: ${nextLabel}`;
 }
 
 function renderBigTimer() {
@@ -272,8 +379,10 @@ function renderTotals() {
 }
 
 function renderLogs() {
-  // Show newest first
-  const items = [...state.sessions].sort((a, b) => (b.startMs - a.startMs));
+  const items = [
+    ...state.sessions.map((s) => ({ ...s, kind: "work" })),
+    ...state.breaks.map((b) => ({ ...b, kind: "break" })),
+  ].sort((a, b) => (b.startMs - a.startMs));
 
   if (items.length === 0) {
     els.log.innerHTML = `<div class="muted">No sessions yet.</div>`;
@@ -284,6 +393,9 @@ function renderLogs() {
     const start = new Date(s.startMs);
     const end = s.endMs == null ? null : new Date(s.endMs);
     const dur = sessionDurationMs(s);
+    const title = s.kind === "break"
+      ? getBreakLabel(s.sequence)
+      : "Work session";
 
     const startStr = `${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     const endStr = end
@@ -296,6 +408,10 @@ function renderLogs() {
           <div>
             <div class="k">Start</div>
             <div class="v">${startStr}</div>
+          </div>
+          <div>
+            <div class="k">Type</div>
+            <div class="v">${title}</div>
           </div>
           <div>
             <div class="k">End</div>
