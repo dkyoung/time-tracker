@@ -46,3 +46,13 @@ Examples:
 Option A (Python):
 ```bash
 python3 -m http.server 4173
+
+---
+
+## Option B (Node):
+```bash
+npx serve .
+
+---
+
+Then open http://localhost:4173
