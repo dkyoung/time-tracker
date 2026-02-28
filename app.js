@@ -33,6 +33,8 @@ const els = {
   btnClockOut: document.getElementById("btnClockOut"),
   btnStartBreak: document.getElementById("btnStartBreak"),
   btnEndBreak: document.getElementById("btnEndBreak"),
+  btnClearSession: document.getElementById("btnClearSession"),
+  btnClearLogs: document.getElementById("btnClearLogs"),
 };
 
 // ---------------------------
@@ -261,10 +263,34 @@ function endBreak() {
   renderAll();
 }
 
+function clearCurrentSession() {
+  const activeSession = getActiveSession();
+  if (!activeSession) return;
+
+  state.sessions = state.sessions.filter((s) => s.id !== activeSession.id);
+  state.breaks = state.breaks.filter((b) => {
+    if (b.sessionId === activeSession.id) return false;
+    if (b.sessionId == null && b.endMs == null) return false;
+    return true;
+  });
+
+  saveState(state);
+  renderAll();
+}
+
+function clearLogs() {
+  state.sessions = [];
+  state.breaks = [];
+  saveState(state);
+  renderAll();
+}
+
 els.btnClockIn.addEventListener("click", clockIn);
 els.btnClockOut.addEventListener("click", clockOut);
 els.btnStartBreak.addEventListener("click", startBreak);
 els.btnEndBreak.addEventListener("click", endBreak);
+els.btnClearSession.addEventListener("click", clearCurrentSession);
+els.btnClearLogs.addEventListener("click", clearLogs);
 
 // ---------------------------
 // Metrics (gross only for now)
@@ -317,6 +343,8 @@ function renderButtons() {
   els.btnClockOut.disabled = !active;
   els.btnStartBreak.disabled = !active || !!activeBreak || allBreaksUsedToday;
   els.btnEndBreak.disabled = !activeBreak;
+  els.btnClearSession.disabled = !active;
+  els.btnClearLogs.disabled = state.sessions.length === 0 && state.breaks.length === 0;
 }
 
 function renderStatus() {

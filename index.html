@@ -23,6 +23,10 @@
 
     <!-- DASHBOARD TAB -->
     <main id="dashboardPanel" class="panel is-active" role="tabpanel">
+      <div class="panel-toolbar">
+        <button id="btnClearSession" class="btn btn-danger" type="button">Clear Current Session</button>
+      </div>
+
       <section class="hero">
         <div class="hero-left">
           <div class="timer-wrap">
@@ -72,8 +76,11 @@
     <!-- LOGS TAB -->
     <main id="logsPanel" class="panel" role="tabpanel">
       <section class="logs-head">
-        <h2 class="h2">Session Logs</h2>
-        <div class="muted">Your saved sessions live here (kept in your browser).</div>
+        <div>
+          <h2 class="h2">Session Logs</h2>
+          <div class="muted">Your saved sessions live here (kept in your browser).</div>
+        </div>
+        <button id="btnClearLogs" class="btn btn-danger" type="button">Clear Logs</button>
       </section>
 
       <section class="logs-body">

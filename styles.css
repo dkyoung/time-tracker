@@ -78,6 +78,17 @@ body{
   display:block;
 }
 
+.panel-toolbar{
+  display:flex;
+  justify-content:flex-end;
+  margin-bottom: 12px;
+}
+
+.btn.btn-danger{
+  border-color: rgba(255, 120, 120, 0.45);
+  background: rgba(255, 94, 94, 0.12);
+}
+
 .hero{
   display:grid;
   grid-template-columns: 1.05fr .95fr;
@@ -190,11 +201,25 @@ body{
   border-radius: 16px;
   box-shadow: var(--shadow);
   padding: 14px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
 }
 
 .h2{
   margin: 0 0 6px 0;
   font-size: 18px;
+}
+
+@media (max-width: 680px){
+  .logs-head{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .logs-head .btn{
+    width: 100%;
+  }
 }
 
 .logs-body{
