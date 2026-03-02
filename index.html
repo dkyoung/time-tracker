@@ -84,7 +84,50 @@
           <h2 class="h2">Session Logs</h2>
           <div class="muted">Your saved sessions live here (kept in your browser).</div>
         </div>
-        <button id="btnClearLogs" class="btn btn-danger" type="button">Clear Logs</button>
+        <div class="logs-head-actions">
+          <button id="btnAddManualLog" class="btn" type="button">Add Manual Log</button>
+          <button id="btnClearLogs" class="btn btn-danger" type="button">Clear Logs</button>
+        </div>
+      </section>
+
+      <section id="manualLogFormWrap" class="manual-form-wrap" hidden>
+        <h3 class="h3">Manual Entry</h3>
+        <form id="manualLogForm" class="manual-form">
+          <label>
+            Type
+            <select id="manualType" required>
+              <option value="work">Work session</option>
+              <option value="break_1">First break (15m)</option>
+              <option value="break_2">Lunch break (30m)</option>
+              <option value="break_3">Last break (15m)</option>
+            </select>
+          </label>
+          <label>
+            Date
+            <input id="manualDate" type="date" required />
+          </label>
+          <label>
+            Start time
+            <input id="manualStart" type="time" required />
+          </label>
+          <label>
+            End time
+            <input id="manualEnd" type="time" required />
+          </label>
+          <label class="manual-notes">
+            Notes (optional)
+            <input id="manualNotes" type="text" maxlength="200" placeholder="Add context" />
+          </label>
+          <div class="manual-meta">
+            <div>Duration: <strong id="manualDuration">00:00:00</strong></div>
+            <div id="manualHint" class="muted"></div>
+            <div id="manualError" class="error" role="alert"></div>
+          </div>
+          <div class="manual-actions">
+            <button class="btn primary" type="submit">Save Manual Log</button>
+            <button id="btnCancelManual" class="btn" type="button">Cancel</button>
+          </div>
+        </form>
       </section>
 
       <section class="logs-body">

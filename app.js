@@ -35,8 +35,21 @@ const els = {
   btnEndBreak: document.getElementById("btnEndBreak"),
   btnClearSession: document.getElementById("btnClearSession"),
   btnClearLogs: document.getElementById("btnClearLogs"),
+  btnAddManualLog: document.getElementById("btnAddManualLog"),
+  btnCancelManual: document.getElementById("btnCancelManual"),
   btnTextWeek: document.getElementById("btnTextWeek"),
   btnToggleFormat: document.getElementById("btnToggleFormat"),
+
+  manualLogFormWrap: document.getElementById("manualLogFormWrap"),
+  manualLogForm: document.getElementById("manualLogForm"),
+  manualType: document.getElementById("manualType"),
+  manualDate: document.getElementById("manualDate"),
+  manualStart: document.getElementById("manualStart"),
+  manualEnd: document.getElementById("manualEnd"),
+  manualNotes: document.getElementById("manualNotes"),
+  manualDuration: document.getElementById("manualDuration"),
+  manualHint: document.getElementById("manualHint"),
+  manualError: document.getElementById("manualError"),
 };
 
 // ---------------------------
@@ -57,8 +70,18 @@ function loadState() {
     if (!parsed || !Array.isArray(parsed.sessions)) return defaultState();
 
     const next = {
-      sessions: parsed.sessions,
-      breaks: Array.isArray(parsed.breaks) ? parsed.breaks : [],
+      sessions: parsed.sessions.map((session) => ({
+        ...session,
+        manual: session.manual === true,
+        notes: typeof session.notes === "string" ? session.notes : "",
+        createdAt: Number.isFinite(session.createdAt) ? session.createdAt : session.startMs,
+      })),
+      breaks: (Array.isArray(parsed.breaks) ? parsed.breaks : []).map((item) => ({
+        ...item,
+        manual: item.manual === true,
+        notes: typeof item.notes === "string" ? item.notes : "",
+        createdAt: Number.isFinite(item.createdAt) ? item.createdAt : item.startMs,
+      })),
     };
     return next;
   } catch {
@@ -147,6 +170,28 @@ function nowMs() {
   return Date.now();
 }
 
+function makeLogId() {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  return `log_${Date.now()}_${suffix}`;
+}
+
+function parseDateTimeToMs(dateValue, timeValue) {
+  return new Date(`${dateValue}T${timeValue}`).getTime();
+}
+
+function expectedMinutesForType(type) {
+  if (type === "break_1" || type === "break_3") return 15;
+  if (type === "break_2") return 30;
+  return null;
+}
+
+function getManualTypeMeta(type) {
+  if (type === "break_1") return { kind: "break", sequence: 1, plannedMinutes: 15 };
+  if (type === "break_2") return { kind: "break", sequence: 2, plannedMinutes: 30 };
+  if (type === "break_3") return { kind: "break", sequence: 3, plannedMinutes: 15 };
+  return { kind: "work" };
+}
+
 function getActiveSession() {
   return state.sessions.find(s => s.endMs == null) || null;
 }
@@ -217,9 +262,12 @@ function clockIn() {
   if (active) return;
 
   state.sessions.push({
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2),
+    id: makeLogId(),
     startMs: nowMs(),
     endMs: null,
+    manual: false,
+    notes: "",
+    createdAt: nowMs(),
   });
 
   saveState(state);
@@ -253,12 +301,15 @@ function startBreak() {
   if (plannedMinutes == null) return;
 
   state.breaks.push({
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2),
+    id: makeLogId(),
     sessionId: activeSession.id,
     startMs: nowMs(),
     endMs: null,
     plannedMinutes,
     sequence,
+    manual: false,
+    notes: "",
+    createdAt: nowMs(),
   });
 
   saveState(state);
@@ -301,6 +352,123 @@ function clearLogs() {
   renderAll();
 }
 
+function openManualForm() {
+  els.manualLogFormWrap.hidden = false;
+  const now = new Date();
+  els.manualDate.value = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  els.manualStart.value = "09:00";
+  els.manualEnd.value = "17:00";
+  els.manualNotes.value = "";
+  els.manualType.value = "work";
+  updateManualFormMeta();
+}
+
+function closeManualForm() {
+  els.manualLogFormWrap.hidden = true;
+  els.manualError.textContent = "";
+  els.manualHint.textContent = "";
+}
+
+function updateManualFormMeta() {
+  const dateValue = els.manualDate.value;
+  const startValue = els.manualStart.value;
+  const endValue = els.manualEnd.value;
+  els.manualError.textContent = "";
+
+  if (!dateValue || !startValue || !endValue) {
+    els.manualDuration.textContent = "00:00:00";
+    els.manualHint.textContent = "";
+    return;
+  }
+
+  const startMs = parseDateTimeToMs(dateValue, startValue);
+  const endMs = parseDateTimeToMs(dateValue, endValue);
+
+  if (endMs <= startMs) {
+    els.manualDuration.textContent = "00:00:00";
+    els.manualError.textContent = "End time must be after start time.";
+    els.manualHint.textContent = "";
+    return;
+  }
+
+  const durationMs = endMs - startMs;
+  els.manualDuration.textContent = fmtHMS(durationMs);
+
+  const expected = expectedMinutesForType(els.manualType.value);
+  if (expected == null) {
+    els.manualHint.textContent = "";
+    return;
+  }
+
+  const actual = Math.round(durationMs / 60000);
+  if (actual !== expected) {
+    els.manualHint.textContent = `Hint: typical ${expected}m break; current entry is ${actual}m.`;
+  } else {
+    els.manualHint.textContent = "";
+  }
+}
+
+function saveManualLog(evt) {
+  evt.preventDefault();
+  const type = els.manualType.value;
+  const dateValue = els.manualDate.value;
+  const startValue = els.manualStart.value;
+  const endValue = els.manualEnd.value;
+  const notes = els.manualNotes.value.trim();
+
+  if (!dateValue || !startValue || !endValue) {
+    els.manualError.textContent = "Date, start time, and end time are required.";
+    return;
+  }
+
+  const startMs = parseDateTimeToMs(dateValue, startValue);
+  const endMs = parseDateTimeToMs(dateValue, endValue);
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    els.manualError.textContent = "Please provide valid date and time values.";
+    return;
+  }
+
+  if (endMs <= startMs) {
+    els.manualError.textContent = "End time must be after start time.";
+    return;
+  }
+
+  const meta = getManualTypeMeta(type);
+  const entry = {
+    id: makeLogId(),
+    startMs,
+    endMs,
+    manual: true,
+    notes,
+    createdAt: nowMs(),
+  };
+
+  if (meta.kind === "break") {
+    state.breaks.push({
+      ...entry,
+      kind: "break",
+      sequence: meta.sequence,
+      plannedMinutes: meta.plannedMinutes,
+      sessionId: null,
+    });
+  } else {
+    state.sessions.push({
+      ...entry,
+      kind: "work",
+    });
+  }
+
+  saveState(state);
+  renderAll();
+  closeManualForm();
+
+  requestAnimationFrame(() => {
+    const added = document.querySelector(`[data-log-id="${entry.id}"]`);
+    added?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
 els.btnClockIn.addEventListener("click", clockIn);
 els.btnClockOut.addEventListener("click", clockOut);
 els.btnStartBreak.addEventListener("click", startBreak);
@@ -320,6 +488,30 @@ els.btnToggleFormat?.addEventListener("click", () => {
   }
 
   updateUI();
+});
+els.btnAddManualLog?.addEventListener("click", openManualForm);
+els.btnCancelManual?.addEventListener("click", closeManualForm);
+els.manualLogForm?.addEventListener("submit", saveManualLog);
+els.manualType?.addEventListener("change", updateManualFormMeta);
+els.manualDate?.addEventListener("input", updateManualFormMeta);
+els.manualStart?.addEventListener("input", updateManualFormMeta);
+els.manualEnd?.addEventListener("input", updateManualFormMeta);
+els.log?.addEventListener("click", (evt) => {
+  const target = evt.target;
+  if (!(target instanceof HTMLElement)) return;
+  const id = target.dataset.deleteManualId;
+  if (!id) return;
+  if (!window.confirm("Delete this manual log?")) return;
+
+  const beforeSessions = state.sessions.length;
+  const beforeBreaks = state.breaks.length;
+  state.sessions = state.sessions.filter((entry) => !(entry.id === id && entry.manual));
+  state.breaks = state.breaks.filter((entry) => !(entry.id === id && entry.manual));
+
+  if (state.sessions.length === beforeSessions && state.breaks.length === beforeBreaks) return;
+
+  saveState(state);
+  renderAll();
 });
 
 function openSmsComposer(message) {
@@ -468,7 +660,16 @@ function renderLogs() {
   const items = [
     ...state.sessions.map((s) => ({ ...s, kind: "work" })),
     ...state.breaks.map((b) => ({ ...b, kind: "break" })),
-  ].sort((a, b) => (b.startMs - a.startMs));
+  ].sort((a, b) => {
+    if (b.startMs !== a.startMs) return b.startMs - a.startMs;
+    const aEnd = a.endMs == null ? Number.MAX_SAFE_INTEGER : a.endMs;
+    const bEnd = b.endMs == null ? Number.MAX_SAFE_INTEGER : b.endMs;
+    if (bEnd !== aEnd) return bEnd - aEnd;
+    const aCreated = Number.isFinite(a.createdAt) ? a.createdAt : 0;
+    const bCreated = Number.isFinite(b.createdAt) ? b.createdAt : 0;
+    if (bCreated !== aCreated) return bCreated - aCreated;
+    return String(b.id).localeCompare(String(a.id));
+  });
 
   if (items.length === 0) {
     els.log.innerHTML = `<div class="muted">No sessions yet.</div>`;
@@ -482,6 +683,8 @@ function renderLogs() {
     const title = s.kind === "break"
       ? getBreakLabel(s.sequence)
       : "Work session";
+    const sourceLabel = s.manual ? "Manual" : "Auto";
+    const manualBadge = s.manual ? '<span class="badge-manual">Manual</span>' : "";
 
     const startStr = `${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     const endStr = end
@@ -489,7 +692,11 @@ function renderLogs() {
       : "Active";
 
     return `
-      <div class="log-item">
+      <div class="log-item" data-log-id="${s.id}">
+        <div class="log-header">
+          ${manualBadge}
+          ${s.manual ? `<button class="btn btn-delete-manual" type="button" data-delete-manual-id="${s.id}">Delete</button>` : ""}
+        </div>
         <div class="row">
           <div>
             <div class="k">Start</div>
@@ -507,6 +714,11 @@ function renderLogs() {
             <div class="k">Duration</div>
             <div class="v">${fmtHMS(dur)}</div>
           </div>
+          <div>
+            <div class="k">Source</div>
+            <div class="v">${sourceLabel}</div>
+          </div>
+          ${s.notes ? `<div><div class="k">Notes</div><div class="v">${s.notes}</div></div>` : ""}
         </div>
       </div>
     `;
