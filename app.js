@@ -265,6 +265,8 @@ function endBreak() {
 }
 
 function clearCurrentSession() {
+  if (!window.confirm("Clear current session? This cannot be undone.")) return;
+
   const activeSession = getActiveSession();
   if (!activeSession) return;
 
