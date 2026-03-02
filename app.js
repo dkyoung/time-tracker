@@ -35,6 +35,7 @@ const els = {
   btnEndBreak: document.getElementById("btnEndBreak"),
   btnClearSession: document.getElementById("btnClearSession"),
   btnClearLogs: document.getElementById("btnClearLogs"),
+  btnTextWeek: document.getElementById("btnTextWeek"),
 };
 
 // ---------------------------
@@ -291,6 +292,25 @@ els.btnStartBreak.addEventListener("click", startBreak);
 els.btnEndBreak.addEventListener("click", endBreak);
 els.btnClearSession.addEventListener("click", clearCurrentSession);
 els.btnClearLogs.addEventListener("click", clearLogs);
+els.btnTextWeek?.addEventListener("click", () => {
+  const msg = getWeeklyHoursText();
+  openSmsComposer(msg);
+});
+
+function openSmsComposer(message) {
+  const encoded = encodeURIComponent(message);
+  const url = `sms:?body=${encoded}`;
+  window.location.href = url;
+}
+
+function getWeeklyHoursText() {
+  const weekNetEl = document.getElementById("weekNet");
+  if (!weekNetEl || !weekNetEl.textContent) {
+    return "Weekly total hours: N/A";
+  }
+
+  return `Weekly total hours: ${weekNetEl.textContent.trim()}`;
+}
 
 // ---------------------------
 // Metrics (gross only for now)
