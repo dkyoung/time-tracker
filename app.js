@@ -36,6 +36,7 @@ const els = {
   btnClearSession: document.getElementById("btnClearSession"),
   btnClearLogs: document.getElementById("btnClearLogs"),
   btnTextWeek: document.getElementById("btnTextWeek"),
+  btnToggleFormat: document.getElementById("btnToggleFormat"),
 };
 
 // ---------------------------
@@ -70,6 +71,7 @@ function saveState(s) {
 }
 
 let state = loadState();
+let displayMode = "time"; // "time" or "decimal"
 
 // ---------------------------
 // Utilities
@@ -91,6 +93,17 @@ function fmtHM(ms) {
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return `${h}:${pad2(m)}`;
+}
+
+function formatMinutes(minutes) {
+  if (displayMode === "decimal") {
+    const decimalHours = minutes / 60;
+    return decimalHours.toFixed(2);
+  }
+
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.floor(minutes % 60);
+  return `${hrs}:${mins.toString().padStart(2, "0")}`;
 }
 
 function startOfDayMs(d) {
@@ -298,6 +311,16 @@ els.btnTextWeek?.addEventListener("click", () => {
   const msg = getWeeklyHoursText();
   openSmsComposer(msg);
 });
+els.btnToggleFormat?.addEventListener("click", () => {
+  displayMode = displayMode === "time" ? "decimal" : "time";
+
+  const btn = els.btnToggleFormat;
+  if (btn) {
+    btn.textContent = displayMode === "time" ? "View: HH:MM" : "View: Decimal";
+  }
+
+  updateUI();
+});
 
 function openSmsComposer(message) {
   const encoded = encodeURIComponent(message);
@@ -428,12 +451,17 @@ function renderTotals() {
   const todayBreaksMs = breaksInRangeMs(dayStart, dayEnd);
   const todayNetMs = Math.max(0, todayGrossMs - todayBreaksMs);
 
-  els.todayGross.textContent = fmtHM(todayGrossMs);
-  els.todayBreaks.textContent = fmtHM(todayBreaksMs);
-  els.todayNet.textContent = fmtHM(todayNetMs);
+  const todayGrossMinutes = Math.max(0, Math.round(todayGrossMs / 60000));
+  const todayBreaksMinutes = Math.max(0, Math.round(todayBreaksMs / 60000));
+  const todayNetMinutes = Math.max(0, Math.round(todayNetMs / 60000));
+  const weekNetMinutes = Math.max(0, Math.round(netInRangeMs(weekStart, weekEnd) / 60000));
+  const monthNetMinutes = Math.max(0, Math.round(netInRangeMs(monthStart, monthEnd) / 60000));
 
-  els.weekNet.textContent = fmtHM(netInRangeMs(weekStart, weekEnd));
-  els.monthNet.textContent = fmtHM(netInRangeMs(monthStart, monthEnd));
+  els.todayGross.textContent = formatMinutes(todayGrossMinutes);
+  els.todayBreaks.textContent = formatMinutes(todayBreaksMinutes);
+  els.todayNet.textContent = formatMinutes(todayNetMinutes);
+  els.weekNet.textContent = formatMinutes(weekNetMinutes);
+  els.monthNet.textContent = formatMinutes(monthNetMinutes);
 }
 
 function renderLogs() {
@@ -485,6 +513,10 @@ function renderLogs() {
   }).join("");
 
   els.log.innerHTML = html;
+}
+
+function updateUI() {
+  renderTotals();
 }
 
 function renderAll() {

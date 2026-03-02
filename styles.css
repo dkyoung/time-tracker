@@ -167,6 +167,26 @@ body{
   cursor:not-allowed;
 }
 
+
+.format-toggle {
+  text-align: right;
+  margin-bottom: 10px;
+}
+
+#btnToggleFormat {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  background: #1e293b;
+  color: #fff;
+}
+
+#btnToggleFormat:hover {
+  opacity: 0.85;
+}
+
 .cards{
   display:grid;
   grid-template-columns: 1fr 1fr;
