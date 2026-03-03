@@ -673,7 +673,11 @@ function renderTotals() {
   const unpaidStr = formatMinutes(todayUnpaidBreaksMinutes);
 
   els.todayGross.textContent = formatMinutes(todayGrossMinutes);
-  els.todayBreaks.textContent = `Paid ${paidStr} • Unpaid ${unpaidStr}`;
+  els.todayBreaks.innerHTML = `
+  <span class="break-paid">Paid ${paidStr}</span>
+  <span class="break-sep"> • </span>
+  <span class="break-unpaid">Unpaid ${unpaidStr}</span>
+`;
   els.todayNet.textContent = formatMinutes(todayNetMinutes);
   els.weekNet.textContent = formatMinutes(weekNetMinutes);
   els.monthNet.textContent = formatMinutes(monthNetMinutes);
