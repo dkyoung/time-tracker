@@ -10,8 +10,10 @@ const els = {
   // tabs
   tabDashboard: document.getElementById("tabDashboard"),
   tabLogs: document.getElementById("tabLogs"),
+  tabSettings: document.getElementById("tabSettings"),
   dashboardPanel: document.getElementById("dashboardPanel"),
   logsPanel: document.getElementById("logsPanel"),
+  settingsPanel: document.getElementById("settingsPanel"),
 
   // dashboard
   bigTimer: document.getElementById("bigTimer"),
@@ -50,6 +52,9 @@ const els = {
   manualDuration: document.getElementById("manualDuration"),
   manualHint: document.getElementById("manualHint"),
   manualError: document.getElementById("manualError"),
+
+  roundingInterval: document.getElementById("roundingInterval"),
+  roundingExample: document.getElementById("roundingExample"),
 };
 
 // ---------------------------
@@ -59,6 +64,9 @@ function defaultState() {
   return {
     sessions: [], // { id, startMs, endMs|null }
     breaks: [], // { id, startMs, endMs|null, plannedMinutes, sequence }
+    settings: {
+      roundingInterval: 5,
+    },
   };
 }
 
@@ -68,6 +76,10 @@ function loadState() {
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.sessions)) return defaultState();
+
+    const safeInterval = Number.isFinite(Number(parsed?.settings?.roundingInterval))
+      ? Number(parsed.settings.roundingInterval)
+      : 5;
 
     const next = {
       sessions: parsed.sessions.map((session) => ({
@@ -85,6 +97,9 @@ function loadState() {
           ? item.isPaidBreak
           : (item.sequence === 2 ? false : true),
       })),
+      settings: {
+        roundingInterval: safeInterval,
+      },
     };
     return next;
   } catch {
@@ -130,6 +145,31 @@ function formatMinutes(minutes) {
   const hrs = Math.floor(minutes / 60);
   const mins = Math.floor(minutes % 60);
   return `${hrs}:${mins.toString().padStart(2, "0")}`;
+}
+
+
+function roundMinutes(minutes, interval) {
+  if (!interval || interval === 0) return minutes;
+  return Math.round(minutes / interval) * interval;
+}
+
+function getRoundingInterval() {
+  const interval = Number(state?.settings?.roundingInterval);
+  return Number.isFinite(interval) ? interval : 5;
+}
+
+function updateRoundingExample() {
+  const interval = getRoundingInterval();
+  if (!els.roundingExample) return;
+
+  if (interval === 0) {
+    els.roundingExample.textContent = "Examples: exact minutes (no rounding)";
+    return;
+  }
+
+  const rounded2 = roundMinutes(2, interval);
+  const rounded7 = roundMinutes(7, interval);
+  els.roundingExample.textContent = `Examples: 2 → ${rounded2} minutes, 7 → ${rounded7} minutes`;
 }
 
 function startOfDayMs(d) {
@@ -243,19 +283,25 @@ function sessionDurationMs(session) {
 // ---------------------------
 function setTab(name) {
   const isDash = name === "dashboard";
+  const isLogs = name === "logs";
+  const isSettings = name === "settings";
 
   els.tabDashboard.classList.toggle("is-active", isDash);
-  els.tabLogs.classList.toggle("is-active", !isDash);
+  els.tabLogs.classList.toggle("is-active", isLogs);
+  els.tabSettings.classList.toggle("is-active", isSettings);
 
   els.tabDashboard.setAttribute("aria-selected", isDash ? "true" : "false");
-  els.tabLogs.setAttribute("aria-selected", !isDash ? "true" : "false");
+  els.tabLogs.setAttribute("aria-selected", isLogs ? "true" : "false");
+  els.tabSettings.setAttribute("aria-selected", isSettings ? "true" : "false");
 
   els.dashboardPanel.classList.toggle("is-active", isDash);
-  els.logsPanel.classList.toggle("is-active", !isDash);
+  els.logsPanel.classList.toggle("is-active", isLogs);
+  els.settingsPanel.classList.toggle("is-active", isSettings);
 }
 
 els.tabDashboard.addEventListener("click", () => setTab("dashboard"));
 els.tabLogs.addEventListener("click", () => setTab("logs"));
+els.tabSettings.addEventListener("click", () => setTab("settings"));
 
 // ---------------------------
 // Core actions
@@ -496,6 +542,13 @@ els.btnToggleFormat?.addEventListener("click", () => {
 
   updateUI();
 });
+els.roundingInterval?.addEventListener("change", (evt) => {
+  const nextValue = Number(evt.target.value);
+  state.settings.roundingInterval = Number.isFinite(nextValue) ? nextValue : 5;
+  saveState(state);
+  renderAll();
+  updateRoundingExample();
+});
 els.btnAddManualLog?.addEventListener("click", openManualForm);
 els.btnCancelManual?.addEventListener("click", closeManualForm);
 els.manualLogForm?.addEventListener("submit", saveManualLog);
@@ -663,12 +716,13 @@ function renderTotals() {
   const todayUnpaidBreaksMs = unpaidBreaksInRangeMs(dayStart, dayEnd);
   const todayNetMs = Math.max(0, todayGrossMs - todayUnpaidBreaksMs);
 
-  const todayGrossMinutes = Math.max(0, Math.round(todayGrossMs / 60000));
-  const todayPaidBreaksMinutes = Math.max(0, Math.round(todayPaidBreaksMs / 60000));
-  const todayUnpaidBreaksMinutes = Math.max(0, Math.round(todayUnpaidBreaksMs / 60000));
-  const todayNetMinutes = Math.max(0, Math.round(todayNetMs / 60000));
-  const weekNetMinutes = Math.max(0, Math.round(netInRangeMs(weekStart, weekEnd) / 60000));
-  const monthNetMinutes = Math.max(0, Math.round(netInRangeMs(monthStart, monthEnd) / 60000));
+  const roundingInterval = getRoundingInterval();
+  const todayGrossMinutes = Math.max(0, roundMinutes(Math.round(todayGrossMs / 60000), roundingInterval));
+  const todayPaidBreaksMinutes = Math.max(0, roundMinutes(Math.round(todayPaidBreaksMs / 60000), roundingInterval));
+  const todayUnpaidBreaksMinutes = Math.max(0, roundMinutes(Math.round(todayUnpaidBreaksMs / 60000), roundingInterval));
+  const todayNetMinutes = Math.max(0, roundMinutes(Math.round(todayNetMs / 60000), roundingInterval));
+  const weekNetMinutes = Math.max(0, roundMinutes(Math.round(netInRangeMs(weekStart, weekEnd) / 60000), roundingInterval));
+  const monthNetMinutes = Math.max(0, roundMinutes(Math.round(netInRangeMs(monthStart, monthEnd) / 60000), roundingInterval));
   const paidStr = formatMinutes(todayPaidBreaksMinutes);
   const unpaidStr = formatMinutes(todayUnpaidBreaksMinutes);
 
@@ -707,6 +761,8 @@ function renderLogs() {
     const start = new Date(s.startMs);
     const end = s.endMs == null ? null : new Date(s.endMs);
     const dur = sessionDurationMs(s);
+    const durationMinutes = Math.max(0, Math.round(dur / 60000));
+    const roundedDurationMinutes = Math.max(0, roundMinutes(durationMinutes, getRoundingInterval()));
     const title = s.kind === "break"
       ? getBreakLabel(s.sequence)
       : "Work session";
@@ -739,7 +795,7 @@ function renderLogs() {
           </div>
           <div>
             <div class="k">Duration</div>
-            <div class="v">${fmtHMS(dur)}</div>
+            <div class="v">${formatMinutes(roundedDurationMinutes)}</div>
           </div>
           <div>
             <div class="k">Source</div>
@@ -756,6 +812,8 @@ function renderLogs() {
 
 function updateUI() {
   renderTotals();
+  renderLogs();
+  updateRoundingExample();
 }
 
 function renderAll() {
@@ -765,6 +823,11 @@ function renderAll() {
   renderBigTimer();
   renderTotals();
   renderLogs();
+
+  if (els.roundingInterval) {
+    els.roundingInterval.value = String(getRoundingInterval());
+  }
+  updateRoundingExample();
 }
 
 // Big timer should always be live, even if user stays on Logs tab.
