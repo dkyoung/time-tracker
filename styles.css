@@ -168,12 +168,15 @@ body{
 }
 
 
-.format-toggle {
-  text-align: right;
+.format-toggle{
+  display: flex;
+  align-items: center;
+  width: 100%;
   margin-bottom: 10px;
 }
 
 #btnToggleFormat {
+  margin-left: auto;
   padding: 6px 12px;
   border-radius: 6px;
   border: none;
