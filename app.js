@@ -81,6 +81,9 @@ function loadState() {
         manual: item.manual === true,
         notes: typeof item.notes === "string" ? item.notes : "",
         createdAt: Number.isFinite(item.createdAt) ? item.createdAt : item.startMs,
+        isPaidBreak: typeof item.isPaidBreak === "boolean"
+          ? item.isPaidBreak
+          : (item.sequence === 2 ? false : true),
       })),
     };
     return next;
@@ -298,6 +301,7 @@ function startBreak() {
   const existingTodayBreaks = countBreaksForDate(new Date());
   const sequence = existingTodayBreaks + 1;
   const plannedMinutes = getPlannedBreakMinutes(sequence - 1);
+  const isPaidBreak = (sequence === 2 ? false : true);
   if (plannedMinutes == null) return;
 
   state.breaks.push({
@@ -307,6 +311,7 @@ function startBreak() {
     endMs: null,
     plannedMinutes,
     sequence,
+    isPaidBreak,
     manual: false,
     notes: "",
     createdAt: nowMs(),
@@ -445,11 +450,13 @@ function saveManualLog(evt) {
   };
 
   if (meta.kind === "break") {
+    const isPaidBreak = (meta.sequence === 2 ? false : true);
     state.breaks.push({
       ...entry,
       kind: "break",
       sequence: meta.sequence,
       plannedMinutes: meta.plannedMinutes,
+      isPaidBreak,
       sessionId: null,
     });
   } else {
@@ -543,22 +550,34 @@ function grossInRangeMs(rangeStart, rangeEnd) {
   return total;
 }
 
-// Placeholder until your break logic is plugged in.
-function breaksInRangeMs(_rangeStart, _rangeEnd) {
+function paidBreaksInRangeMs(rangeStart, rangeEnd) {
   let total = 0;
   for (const b of state.breaks) {
     const bStart = b.startMs;
     const bEnd = (b.endMs == null ? nowMs() : b.endMs);
-    if (bEnd < _rangeStart || bStart > _rangeEnd) continue;
-    total += clampToRange(bStart, bEnd, _rangeStart, _rangeEnd);
+    if (b.isPaidBreak !== true) continue;
+    if (bEnd < rangeStart || bStart > rangeEnd) continue;
+    total += clampToRange(bStart, bEnd, rangeStart, rangeEnd);
+  }
+  return total;
+}
+
+function unpaidBreaksInRangeMs(rangeStart, rangeEnd) {
+  let total = 0;
+  for (const b of state.breaks) {
+    const bStart = b.startMs;
+    const bEnd = (b.endMs == null ? nowMs() : b.endMs);
+    if (b.isPaidBreak !== false) continue;
+    if (bEnd < rangeStart || bStart > rangeEnd) continue;
+    total += clampToRange(bStart, bEnd, rangeStart, rangeEnd);
   }
   return total;
 }
 
 function netInRangeMs(rangeStart, rangeEnd) {
   const gross = grossInRangeMs(rangeStart, rangeEnd);
-  const brk = breaksInRangeMs(rangeStart, rangeEnd);
-  return Math.max(0, gross - brk);
+  const unpaid = unpaidBreaksInRangeMs(rangeStart, rangeEnd);
+  return Math.max(0, gross - unpaid);
 }
 
 // ---------------------------
@@ -640,17 +659,21 @@ function renderTotals() {
   const monthEnd = dayEnd;
 
   const todayGrossMs = grossInRangeMs(dayStart, dayEnd);
-  const todayBreaksMs = breaksInRangeMs(dayStart, dayEnd);
-  const todayNetMs = Math.max(0, todayGrossMs - todayBreaksMs);
+  const todayPaidBreaksMs = paidBreaksInRangeMs(dayStart, dayEnd);
+  const todayUnpaidBreaksMs = unpaidBreaksInRangeMs(dayStart, dayEnd);
+  const todayNetMs = Math.max(0, todayGrossMs - todayUnpaidBreaksMs);
 
   const todayGrossMinutes = Math.max(0, Math.round(todayGrossMs / 60000));
-  const todayBreaksMinutes = Math.max(0, Math.round(todayBreaksMs / 60000));
+  const todayPaidBreaksMinutes = Math.max(0, Math.round(todayPaidBreaksMs / 60000));
+  const todayUnpaidBreaksMinutes = Math.max(0, Math.round(todayUnpaidBreaksMs / 60000));
   const todayNetMinutes = Math.max(0, Math.round(todayNetMs / 60000));
   const weekNetMinutes = Math.max(0, Math.round(netInRangeMs(weekStart, weekEnd) / 60000));
   const monthNetMinutes = Math.max(0, Math.round(netInRangeMs(monthStart, monthEnd) / 60000));
+  const paidStr = formatMinutes(todayPaidBreaksMinutes);
+  const unpaidStr = formatMinutes(todayUnpaidBreaksMinutes);
 
   els.todayGross.textContent = formatMinutes(todayGrossMinutes);
-  els.todayBreaks.textContent = formatMinutes(todayBreaksMinutes);
+  els.todayBreaks.textContent = `Paid ${paidStr} • Unpaid ${unpaidStr}`;
   els.todayNet.textContent = formatMinutes(todayNetMinutes);
   els.weekNet.textContent = formatMinutes(weekNetMinutes);
   els.monthNet.textContent = formatMinutes(monthNetMinutes);
