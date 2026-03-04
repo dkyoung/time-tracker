@@ -41,6 +41,7 @@
             <div id="statusText" class="status-text">Not clocked in</div>
             <div id="activeSessionText" class="active-session-text">—</div>
             <div id="breakStatusText" class="active-session-text">Breaks available after you clock in.</div>
+            <div id="breakSkipSummary" class="active-session-text">No skipped breaks today.</div>
           </div>
 
           <div class="controls">
@@ -48,6 +49,17 @@
             <button id="btnClockOut" class="btn" type="button">Clock Out</button>
             <button id="btnStartBreak" class="btn" type="button">Start Break</button>
             <button id="btnEndBreak" class="btn" type="button">End Break</button>
+          </div>
+
+          <div class="break-skip-controls">
+            <label for="skipBreakTarget">Skip Break</label>
+            <select id="skipBreakTarget">
+              <option value="next">Next upcoming break</option>
+              <option value="1">Break 1 (15m)</option>
+              <option value="2">Lunch (30m)</option>
+              <option value="3">Break 3 (15m)</option>
+            </select>
+            <button id="btnSkipBreak" class="btn" type="button">Skip Break</button>
           </div>
         </div>
 

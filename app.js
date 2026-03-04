@@ -20,6 +20,7 @@ const els = {
   statusText: document.getElementById("statusText"),
   activeSessionText: document.getElementById("activeSessionText"),
   breakStatusText: document.getElementById("breakStatusText"),
+  breakSkipSummary: document.getElementById("breakSkipSummary"),
 
   todayGross: document.getElementById("todayGross"),
   todayBreaks: document.getElementById("todayBreaks"),
@@ -35,12 +36,14 @@ const els = {
   btnClockOut: document.getElementById("btnClockOut"),
   btnStartBreak: document.getElementById("btnStartBreak"),
   btnEndBreak: document.getElementById("btnEndBreak"),
+  btnSkipBreak: document.getElementById("btnSkipBreak"),
   btnClearSession: document.getElementById("btnClearSession"),
   btnClearLogs: document.getElementById("btnClearLogs"),
   btnAddManualLog: document.getElementById("btnAddManualLog"),
   btnCancelManual: document.getElementById("btnCancelManual"),
   btnTextWeek: document.getElementById("btnTextWeek"),
   btnToggleFormat: document.getElementById("btnToggleFormat"),
+  skipBreakTarget: document.getElementById("skipBreakTarget"),
 
   manualLogFormWrap: document.getElementById("manualLogFormWrap"),
   manualLogForm: document.getElementById("manualLogForm"),
@@ -64,10 +67,25 @@ function defaultState() {
   return {
     sessions: [], // { id, startMs, endMs|null }
     breaks: [], // { id, startMs, endMs|null, plannedMinutes, sequence }
+    auditLogs: [], // { id, kind, timestampMs, message, breakSequence, endedActiveBreak, manual }
     settings: {
       roundingInterval: 5,
     },
+    skippedBreaksByDate: {}, // { YYYY-MM-DD: [bool,bool,bool] }
   };
+}
+
+
+
+function sanitizeSkippedBreaksByDate(raw) {
+  if (!raw || typeof raw !== "object") return {};
+
+  const clean = {};
+  for (const [dateKey, value] of Object.entries(raw)) {
+    if (!Array.isArray(value)) continue;
+    clean[dateKey] = BREAK_PLAN_MINUTES.map((_, idx) => value[idx] === true);
+  }
+  return clean;
 }
 
 function loadState() {
@@ -97,9 +115,20 @@ function loadState() {
           ? item.isPaidBreak
           : (item.sequence === 2 ? false : true),
       })),
+      auditLogs: (Array.isArray(parsed.auditLogs) ? parsed.auditLogs : []).map((item) => ({
+        id: item.id || makeLogId(),
+        kind: item.kind || "audit",
+        timestampMs: Number.isFinite(item.timestampMs) ? item.timestampMs : nowMs(),
+        message: typeof item.message === "string" ? item.message : "",
+        breakSequence: Number.isFinite(item.breakSequence) ? item.breakSequence : null,
+        endedActiveBreak: item.endedActiveBreak === true,
+        manual: item.manual === true,
+        createdAt: Number.isFinite(item.createdAt) ? item.createdAt : (Number.isFinite(item.timestampMs) ? item.timestampMs : nowMs()),
+      })),
       settings: {
         roundingInterval: safeInterval,
       },
+      skippedBreaksByDate: sanitizeSkippedBreaksByDate(parsed?.skippedBreaksByDate),
     };
     return next;
   } catch {
@@ -258,13 +287,71 @@ function getBreakLabel(sequence) {
   return "Break";
 }
 
-function countBreaksForDate(d) {
+function getBreakShortLabel(sequence) {
+  if (sequence === 1) return "Break 1";
+  if (sequence === 2) return "Break 2 (Lunch)";
+  if (sequence === 3) return "Break 3";
+  return `Break ${sequence}`;
+}
+
+function getDateKey(ms = nowMs()) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function ensureSkippedBreaksForDate(dateKey = getDateKey()) {
+  if (!state.skippedBreaksByDate || typeof state.skippedBreaksByDate !== "object") {
+    state.skippedBreaksByDate = {};
+  }
+
+  if (!Array.isArray(state.skippedBreaksByDate[dateKey])) {
+    state.skippedBreaksByDate[dateKey] = BREAK_PLAN_MINUTES.map(() => false);
+  }
+
+  state.skippedBreaksByDate[dateKey] = BREAK_PLAN_MINUTES.map((_, idx) => state.skippedBreaksByDate[dateKey][idx] === true);
+  return state.skippedBreaksByDate[dateKey];
+}
+
+function getSkippedBreaksForDate(dateKey = getDateKey()) {
+  const skipped = ensureSkippedBreaksForDate(dateKey);
+  return [...skipped];
+}
+
+function cleanupSkippedBreaks(todayKey = getDateKey()) {
+  const previous = JSON.stringify(state.skippedBreaksByDate || {});
+  if (!state.skippedBreaksByDate || typeof state.skippedBreaksByDate !== "object") {
+    state.skippedBreaksByDate = {};
+  }
+  state.skippedBreaksByDate = { [todayKey]: ensureSkippedBreaksForDate(todayKey) };
+  return JSON.stringify(state.skippedBreaksByDate) !== previous;
+}
+
+function getCompletedBreakSequencesForDate(d) {
   const dayStart = startOfDayMs(d);
   const dayEnd = endOfDayMs(d);
-  return state.breaks.filter((b) => {
-    const ms = b.startMs;
-    return ms >= dayStart && ms <= dayEnd;
-  }).length;
+  const completed = new Set();
+
+  for (const b of state.breaks) {
+    if (b.startMs < dayStart || b.startMs > dayEnd) continue;
+    if (!Number.isFinite(b.sequence)) continue;
+    if (b.endMs == null) continue;
+    completed.add(b.sequence);
+  }
+
+  return completed;
+}
+
+function getNextBreakSequence(d = new Date()) {
+  const completed = getCompletedBreakSequencesForDate(d);
+  const skipped = getSkippedBreaksForDate(getDateKey(d.getTime()));
+
+  for (let sequence = 1; sequence <= BREAK_PLAN_MINUTES.length; sequence += 1) {
+    if (completed.has(sequence)) continue;
+    if (skipped[sequence - 1]) continue;
+    return sequence;
+  }
+
+  return null;
 }
 
 function clampToRange(msStart, msEnd, rangeStart, rangeEnd) {
@@ -344,8 +431,9 @@ function startBreak() {
   const activeBreak = getActiveBreak(activeSession.id);
   if (activeBreak) return;
 
-  const existingTodayBreaks = countBreaksForDate(new Date());
-  const sequence = existingTodayBreaks + 1;
+  const sequence = getNextBreakSequence(new Date());
+  if (sequence == null) return;
+
   const plannedMinutes = getPlannedBreakMinutes(sequence - 1);
   const isPaidBreak = (sequence === 2 ? false : true);
   if (plannedMinutes == null) return;
@@ -379,6 +467,46 @@ function endBreak() {
   renderAll();
 }
 
+function skipBreak() {
+  const activeSession = getActiveSession();
+  if (!activeSession) return;
+
+  const dateKey = getDateKey();
+  const skipped = ensureSkippedBreaksForDate(dateKey);
+  const completed = getCompletedBreakSequencesForDate(new Date());
+
+  const selectedValue = els.skipBreakTarget?.value || "next";
+  const selectedSequence = selectedValue === "next" ? getNextBreakSequence(new Date()) : Number(selectedValue);
+
+  if (!Number.isFinite(selectedSequence) || selectedSequence < 1 || selectedSequence > BREAK_PLAN_MINUTES.length) return;
+  if (completed.has(selectedSequence)) return;
+  if (skipped[selectedSequence - 1]) return;
+
+  const activeBreak = getActiveBreak(activeSession.id);
+  let endedActiveBreak = false;
+  if (activeBreak && activeBreak.sequence === selectedSequence) {
+    activeBreak.endMs = nowMs();
+    endedActiveBreak = true;
+  }
+
+  skipped[selectedSequence - 1] = true;
+
+  state.auditLogs.push({
+    id: makeLogId(),
+    kind: "break_skip",
+    timestampMs: nowMs(),
+    breakSequence: selectedSequence,
+    endedActiveBreak,
+    manual: false,
+    message: `${getBreakShortLabel(selectedSequence)} skipped${endedActiveBreak ? " and active break ended" : ""}`,
+    createdAt: nowMs(),
+  });
+
+  cleanupSkippedBreaks(dateKey);
+  saveState(state);
+  renderAll();
+}
+
 function clearCurrentSession() {
   if (!window.confirm("Clear current session? This cannot be undone.")) return;
 
@@ -399,6 +527,7 @@ function clearCurrentSession() {
 function clearLogs() {
   state.sessions = [];
   state.breaks = [];
+  state.auditLogs = [];
   saveState(state);
   renderAll();
 }
@@ -526,6 +655,7 @@ els.btnClockIn.addEventListener("click", clockIn);
 els.btnClockOut.addEventListener("click", clockOut);
 els.btnStartBreak.addEventListener("click", startBreak);
 els.btnEndBreak.addEventListener("click", endBreak);
+els.btnSkipBreak?.addEventListener("click", skipBreak);
 els.btnClearSession.addEventListener("click", clearCurrentSession);
 els.btnClearLogs.addEventListener("click", clearLogs);
 els.btnTextWeek?.addEventListener("click", () => {
@@ -645,22 +775,58 @@ function renderHeader() {
 function renderButtons() {
   const active = getActiveSession();
   const activeBreak = active ? getActiveBreak(active.id) : null;
-  const todayBreakCount = countBreaksForDate(new Date());
-  const allBreaksUsedToday = todayBreakCount >= BREAK_PLAN_MINUTES.length;
+  const nextBreakSequence = getNextBreakSequence(new Date());
 
   els.btnClockIn.disabled = !!active;
   els.btnClockOut.disabled = !active;
-  els.btnStartBreak.disabled = !active || !!activeBreak || allBreaksUsedToday;
+  els.btnStartBreak.disabled = !active || !!activeBreak || nextBreakSequence == null;
   els.btnEndBreak.disabled = !activeBreak;
+  els.btnSkipBreak.disabled = !active || nextBreakSequence == null;
+  els.skipBreakTarget.disabled = !active;
   els.btnClearSession.disabled = !active;
-  els.btnClearLogs.disabled = state.sessions.length === 0 && state.breaks.length === 0;
+  els.btnClearLogs.disabled = state.sessions.length === 0 && state.breaks.length === 0 && (state.auditLogs?.length ?? 0) === 0;
+
+  const dateKey = getDateKey();
+  const skipped = getSkippedBreaksForDate(dateKey);
+  const completed = getCompletedBreakSequencesForDate(new Date());
+  for (const option of els.skipBreakTarget.options) {
+    const value = option.value;
+    if (value === "next") {
+      option.disabled = nextBreakSequence == null;
+      option.textContent = nextBreakSequence == null
+        ? "Next upcoming break (none left)"
+        : `Next upcoming break (${getBreakShortLabel(nextBreakSequence)})`;
+      continue;
+    }
+
+    const sequence = Number(value);
+    const isDone = completed.has(sequence);
+    const isSkipped = skipped[sequence - 1] === true;
+    option.disabled = isDone || isSkipped;
+    const suffix = isDone ? " (completed)" : (isSkipped ? " (skipped)" : "");
+    option.textContent = `${getBreakShortLabel(sequence)}${sequence === 2 ? " - 30m" : " - 15m"}${suffix}`;
+  }
+
+  if (els.skipBreakTarget.value !== "next") {
+    const selected = Number(els.skipBreakTarget.value);
+    if (Number.isFinite(selected) && (completed.has(selected) || skipped[selected - 1])) {
+      els.skipBreakTarget.value = "next";
+    }
+  }
 }
 
 function renderStatus() {
   const active = getActiveSession();
   const activeBreak = active ? getActiveBreak(active.id) : null;
-  const todayBreakCount = countBreaksForDate(new Date());
-  const nextBreakNumber = todayBreakCount + 1;
+  const dateKey = getDateKey();
+  const skipped = getSkippedBreaksForDate(dateKey);
+  const skippedList = skipped
+    .map((isSkipped, idx) => (isSkipped ? getBreakShortLabel(idx + 1) : null))
+    .filter(Boolean);
+
+  els.breakSkipSummary.textContent = skippedList.length > 0
+    ? `Skipped today: ${skippedList.join(", ")}`
+    : "No skipped breaks today.";
 
   if (!active) {
     els.statusText.textContent = "Not clocked in";
@@ -680,12 +846,13 @@ function renderStatus() {
     return;
   }
 
-  const nextMinutes = getPlannedBreakMinutes(todayBreakCount);
-  if (nextMinutes == null) {
-    els.breakStatusText.textContent = "All planned breaks for today are completed.";
+  const nextBreakSequence = getNextBreakSequence(new Date());
+  if (nextBreakSequence == null) {
+    els.breakStatusText.textContent = "All planned breaks for today are completed or skipped.";
     return;
   }
-  const nextLabel = getBreakLabel(nextBreakNumber);
+
+  const nextLabel = getBreakLabel(nextBreakSequence);
   els.breakStatusText.textContent = `Next: ${nextLabel}`;
 }
 
@@ -741,6 +908,7 @@ function renderLogs() {
   const items = [
     ...state.sessions.map((s) => ({ ...s, kind: "work" })),
     ...state.breaks.map((b) => ({ ...b, kind: "break" })),
+    ...((Array.isArray(state.auditLogs) ? state.auditLogs : []).map((a) => ({ ...a, kind: "audit", startMs: a.timestampMs, endMs: a.timestampMs }))),
   ].sort((a, b) => {
     if (b.startMs !== a.startMs) return b.startMs - a.startMs;
     const aEnd = a.endMs == null ? Number.MAX_SAFE_INTEGER : a.endMs;
@@ -760,6 +928,32 @@ function renderLogs() {
   const html = items.map(s => {
     const start = new Date(s.startMs);
     const end = s.endMs == null ? null : new Date(s.endMs);
+    if (s.kind === "audit") {
+      const stamp = `${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      return `
+      <div class="log-item" data-log-id="${s.id}">
+        <div class="row">
+          <div>
+            <div class="k">Timestamp</div>
+            <div class="v">${stamp}</div>
+          </div>
+          <div>
+            <div class="k">Type</div>
+            <div class="v">Break skipped</div>
+          </div>
+          <div>
+            <div class="k">Break</div>
+            <div class="v">${Number.isFinite(s.breakSequence) ? getBreakShortLabel(s.breakSequence) : "—"}</div>
+          </div>
+          <div>
+            <div class="k">Details</div>
+            <div class="v">${s.endedActiveBreak ? "Active break ended immediately" : "Skipped before start"}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    }
+
     const dur = sessionDurationMs(s);
     const durationMinutes = Math.max(0, Math.round(dur / 60000));
     const roundedDurationMinutes = Math.max(0, roundMinutes(durationMinutes, getRoundingInterval()));
@@ -817,6 +1011,9 @@ function updateUI() {
 }
 
 function renderAll() {
+  const didCleanupSkips = cleanupSkippedBreaks(getDateKey());
+  if (didCleanupSkips) saveState(state);
+
   renderHeader();
   renderButtons();
   renderStatus();

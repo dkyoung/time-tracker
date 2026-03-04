@@ -148,6 +148,34 @@ body{
   margin-top: 12px;
 }
 
+.break-skip-controls{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top: 10px;
+}
+
+.break-skip-controls label{
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.break-skip-controls select{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:8px;
+  background: rgba(15,23,38,.65);
+  color: var(--text);
+  min-width: 220px;
+}
+
+.break-skip-controls .btn{
+  min-width: auto;
+  padding: 8px 12px;
+}
+
 .btn{
   border: 1px solid var(--border);
   background: rgba(15,23,38,.65);
