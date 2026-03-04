@@ -1,6 +1,7 @@
 "use strict";
 
 const STORAGE_KEY = "tt_v1";
+const LAST_BACKUP_KEY = "tt_last_backup_ts";
 const BREAK_PLAN_MINUTES = [15, 30, 15];
 
 const els = {
@@ -58,6 +59,8 @@ const els = {
 
   roundingInterval: document.getElementById("roundingInterval"),
   roundingExample: document.getElementById("roundingExample"),
+  btnExportBackup: document.getElementById("btnExportBackup"),
+  lastBackupLabel: document.getElementById("lastBackupLabel"),
 };
 
 // ---------------------------
@@ -388,7 +391,10 @@ function setTab(name) {
 
 els.tabDashboard.addEventListener("click", () => setTab("dashboard"));
 els.tabLogs.addEventListener("click", () => setTab("logs"));
-els.tabSettings.addEventListener("click", () => setTab("settings"));
+els.tabSettings.addEventListener("click", () => {
+  setTab("settings");
+  renderLastBackup();
+});
 
 // ---------------------------
 // Core actions
@@ -679,6 +685,7 @@ els.roundingInterval?.addEventListener("change", (evt) => {
   renderAll();
   updateRoundingExample();
 });
+els.btnExportBackup?.addEventListener("click", exportBackup);
 els.btnAddManualLog?.addEventListener("click", openManualForm);
 els.btnCancelManual?.addEventListener("click", closeManualForm);
 els.manualLogForm?.addEventListener("submit", saveManualLog);
@@ -703,6 +710,77 @@ els.log?.addEventListener("click", (evt) => {
   saveState(state);
   renderAll();
 });
+
+function renderLastBackup() {
+  if (!els.lastBackupLabel) return;
+
+  const raw = localStorage.getItem(LAST_BACKUP_KEY);
+  if (!raw) {
+    els.lastBackupLabel.textContent = "Never";
+    return;
+  }
+
+  const timestamp = Number(raw);
+  if (!Number.isFinite(timestamp)) {
+    els.lastBackupLabel.textContent = "Never";
+    return;
+  }
+
+  const formatted = new Date(timestamp).toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  els.lastBackupLabel.textContent = formatted;
+}
+
+function buildBackupFilename(date = new Date()) {
+  const year = date.getFullYear();
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  const hours = pad2(date.getHours());
+  const minutes = pad2(date.getMinutes());
+  return `time-tracker-backup-${year}-${month}-${day}-${hours}${minutes}.json`;
+}
+
+function exportBackup() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  let data = {};
+
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = { _rawStorageValue: raw };
+    }
+  }
+
+  const payload = {
+    meta: {
+      app: "Time Tracker",
+      exportedAt: new Date().toISOString(),
+      storageKey: STORAGE_KEY,
+      version: 1,
+    },
+    data,
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = buildBackupFilename(new Date());
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  localStorage.setItem(LAST_BACKUP_KEY, String(Date.now()));
+  renderLastBackup();
+}
 
 function openSmsComposer(message) {
   const encoded = encodeURIComponent(message);
@@ -1008,6 +1086,7 @@ function updateUI() {
   renderTotals();
   renderLogs();
   updateRoundingExample();
+  renderLastBackup();
 }
 
 function renderAll() {
@@ -1025,6 +1104,7 @@ function renderAll() {
     els.roundingInterval.value = String(getRoundingInterval());
   }
   updateRoundingExample();
+  renderLastBackup();
 }
 
 // Big timer should always be live, even if user stays on Logs tab.

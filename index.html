@@ -100,7 +100,7 @@
       <section class="logs-head">
         <div>
           <h2 class="h2">Session Logs</h2>
-          <div class="muted">Your saved sessions live here (kept in your browser).</div>
+          <div class="muted">Your saved sessions live on this device. Use Settings → Export Backup to save a copy.</div>
         </div>
         <div class="logs-head-actions">
           <button id="btnAddManualLog" class="btn" type="button">Add Manual Log</button>
@@ -178,11 +178,24 @@
         </div>
 
         <div id="roundingExample" class="muted"></div>
+
+        <hr class="settings-separator" />
+
+        <section class="settings-section" aria-label="Backup settings">
+          <h3 class="h3">Backup</h3>
+          <div class="muted">
+            Export creates a .json file you can save to Files (iCloud Drive) or any cloud app.
+          </div>
+          <div class="settings-row settings-row--actions">
+            <button id="btnExportBackup" class="btn" type="button">Export Backup</button>
+          </div>
+          <div class="muted">Last backup: <span id="lastBackupLabel">Never</span></div>
+        </section>
       </section>
     </main>
 
     <footer class="footer">
-      <div class="muted">Local-only storage · No account required</div>
+      <div class="muted">Local-only by default · Export Backup to save a copy (Files/iCloud/Drive)</div>
     </footer>
   </div>
 
