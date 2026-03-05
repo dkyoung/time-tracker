@@ -149,6 +149,47 @@
       </section>
 
       <section class="logs-body">
+        <div class="log-table" aria-label="Log entries table">
+          <div class="log-grid-scroll">
+            <div class="log-grid-header" role="row">
+              <div>Start Time</div>
+              <div>Session Type</div>
+              <div>End Time</div>
+              <div>Duration</div>
+              <div>Source</div>
+              <div>Notes</div>
+            </div>
+            <div class="log-grid-filters" role="row">
+              <div class="log-filter-spacer" aria-hidden="true"></div>
+              <div>
+                <select id="logFilterType" aria-label="Filter by session type">
+                  <option value="all">All</option>
+                  <option value="work">Work session</option>
+                  <option value="break_1">First break (15m)</option>
+                  <option value="break_2">Lunch break (30m)</option>
+                  <option value="break_3">Last break (15m)</option>
+                  <option value="audit">Break skipped</option>
+                </select>
+              </div>
+              <div>
+                <input id="logFilterDate" type="date" aria-label="Filter by start date" />
+              </div>
+              <div>
+                <button id="btnClearLogFilters" class="btn" type="button">Clear Filters</button>
+              </div>
+              <div>
+                <select id="logFilterSource" aria-label="Filter by source">
+                  <option value="all">All</option>
+                  <option value="auto">Auto</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </div>
+              <div>
+                <input id="logFilterNotes" type="text" placeholder="Search notes" aria-label="Search notes" />
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="log" class="log"></div>
       </section>
     </main>

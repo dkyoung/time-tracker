@@ -32,6 +32,11 @@ const els = {
 
   // logs (now in Logs tab)
   log: document.getElementById("log"),
+  logFilterType: document.getElementById("logFilterType"),
+  logFilterSource: document.getElementById("logFilterSource"),
+  logFilterDate: document.getElementById("logFilterDate"),
+  logFilterNotes: document.getElementById("logFilterNotes"),
+  btnClearLogFilters: document.getElementById("btnClearLogFilters"),
 
   // controls
   btnClockIn: document.getElementById("btnClockIn"),
@@ -149,6 +154,7 @@ function saveState(s) {
 
 let state = loadState();
 let displayMode = "time"; // "time" or "decimal"
+const logFilters = { type: "all", source: "all", date: "", notes: "" };
 
 // ---------------------------
 // Utilities
@@ -714,6 +720,35 @@ els.manualType?.addEventListener("change", updateManualFormMeta);
 els.manualDate?.addEventListener("input", updateManualFormMeta);
 els.manualStart?.addEventListener("input", updateManualFormMeta);
 els.manualEnd?.addEventListener("input", updateManualFormMeta);
+els.logFilterType?.addEventListener("change", (evt) => {
+  logFilters.type = evt.target.value;
+  renderLogs();
+});
+els.logFilterSource?.addEventListener("change", (evt) => {
+  logFilters.source = evt.target.value;
+  renderLogs();
+});
+els.logFilterDate?.addEventListener("change", (evt) => {
+  logFilters.date = evt.target.value;
+  renderLogs();
+});
+els.logFilterNotes?.addEventListener("input", (evt) => {
+  logFilters.notes = evt.target.value;
+  renderLogs();
+});
+els.btnClearLogFilters?.addEventListener("click", () => {
+  logFilters.type = "all";
+  logFilters.source = "all";
+  logFilters.date = "";
+  logFilters.notes = "";
+
+  if (els.logFilterType) els.logFilterType.value = "all";
+  if (els.logFilterSource) els.logFilterSource.value = "all";
+  if (els.logFilterDate) els.logFilterDate.value = "";
+  if (els.logFilterNotes) els.logFilterNotes.value = "";
+
+  renderLogs();
+});
 els.log?.addEventListener("click", (evt) => {
   const target = evt.target;
   if (!(target instanceof HTMLElement)) return;
@@ -1143,12 +1178,60 @@ function renderTotals() {
   els.monthNet.textContent = formatMinutes(monthNetMinutes);
 }
 
-function renderLogs() {
-  const items = [
+function getItemTypeFilterValue(item) {
+  if (item.kind === "audit") return "audit";
+  if (item.kind === "work") return "work";
+  if (item.kind === "break") return `break_${Number.isFinite(item.sequence) ? item.sequence : ""}`;
+  return "all";
+}
+
+function getItemSourceLabel(item) {
+  return item.manual ? "Manual" : "Auto";
+}
+
+function buildCombinedLogItems() {
+  return [
     ...state.sessions.map((s) => ({ ...s, kind: "work" })),
     ...state.breaks.map((b) => ({ ...b, kind: "break" })),
-    ...((Array.isArray(state.auditLogs) ? state.auditLogs : []).map((a) => ({ ...a, kind: "audit", startMs: a.timestampMs, endMs: a.timestampMs }))),
-  ].sort((a, b) => {
+    ...((Array.isArray(state.auditLogs) ? state.auditLogs : []).map((a) => ({
+      ...a,
+      kind: "audit",
+      startMs: a.timestampMs,
+      endMs: a.timestampMs,
+    }))),
+  ];
+}
+
+function applyLogFilters(items, filters) {
+  return items.filter((item) => {
+    if (filters.type !== "all" && getItemTypeFilterValue(item) !== filters.type) {
+      return false;
+    }
+
+    if (filters.source !== "all") {
+      const source = item.manual ? "manual" : "auto";
+      if (source !== filters.source) return false;
+    }
+
+    if (filters.date) {
+      const itemDate = getDateKey(item.startMs);
+      if (itemDate !== filters.date) return false;
+    }
+
+    if (filters.notes.trim()) {
+      const needle = filters.notes.trim().toLowerCase();
+      const haystack = item.kind === "audit"
+        ? (item.message || "")
+        : (item.notes || "");
+      if (!haystack.toLowerCase().includes(needle)) return false;
+    }
+
+    return true;
+  });
+}
+
+function renderLogs() {
+  const items = buildCombinedLogItems().sort((a, b) => {
     if (b.startMs !== a.startMs) return b.startMs - a.startMs;
     const aEnd = a.endMs == null ? Number.MAX_SAFE_INTEGER : a.endMs;
     const bEnd = b.endMs == null ? Number.MAX_SAFE_INTEGER : b.endMs;
@@ -1164,94 +1247,65 @@ function renderLogs() {
     return;
   }
 
-  const html = items.map(s => {
-    const start = new Date(s.startMs);
-    const end = s.endMs == null ? null : new Date(s.endMs);
-    if (s.kind === "audit") {
-      const stamp = fmtLogStamp(s.startMs);
-      return `
-      <div class="log-item" data-log-id="${s.id}">
-        <div class="row">
-          <div>
-            <div class="k">Timestamp</div>
-            <div class="v">${stamp}</div>
-          </div>
-          <div>
-            <div class="k">Type</div>
-            <div class="v">Break skipped</div>
-          </div>
-          <div>
-            <div class="k">Break</div>
-            <div class="v">${Number.isFinite(s.breakSequence) ? getBreakShortLabel(s.breakSequence) : "—"}</div>
-          </div>
-          <div>
-            <div class="k">Details</div>
-            <div class="v">${s.endedActiveBreak ? "Active break ended immediately" : "Skipped before start"}</div>
-          </div>
-        </div>
-      </div>
-    `;
-    }
+  const filtered = applyLogFilters(items, logFilters);
+  if (filtered.length === 0) {
+    els.log.innerHTML = `<div class="muted">No matching records.</div>`;
+    return;
+  }
 
-    const dur = sessionDurationMs(s);
-    const durationMinutes = Math.max(0, Math.round(dur / 60000));
-    const roundedDurationMinutes = Math.max(0, roundMinutes(durationMinutes, getRoundingInterval()));
-    let roundedWorkedMinutes = roundedDurationMinutes;
-
-    if (s.kind === "work") {
-      const sessionStart = s.startMs;
-      const sessionEnd = s.endMs == null ? nowMs() : s.endMs;
-      const unpaidLunchOverlapMs = state.breaks
-        .filter((b) => b.isPaidBreak === false)
-        .reduce((total, b) => {
-          const breakEnd = b.endMs == null ? nowMs() : b.endMs;
-          return total + clampToRange(sessionStart, sessionEnd, b.startMs, breakEnd);
-        }, 0);
-
-      const workedMs = Math.max(0, (sessionEnd - sessionStart) - unpaidLunchOverlapMs);
-      const workedMinutes = Math.max(0, Math.round(workedMs / 60000));
-      roundedWorkedMinutes = Math.max(0, roundMinutes(workedMinutes, getRoundingInterval()));
-    }
-    const title = s.kind === "break"
-      ? getBreakLabel(s.sequence)
-      : "Work session";
-    const sourceLabel = s.manual ? "Manual" : "Auto";
-    const manualBadge = s.manual ? '<span class="badge-manual">Manual</span>' : "";
-
+  const html = filtered.map((s) => {
     const startStr = fmtLogStamp(s.startMs);
-    const endStr = end
-      ? fmtLogStamp(s.endMs)
-      : "Active";
+
+    let sessionType = "Work session";
+    let endStr = s.endMs == null ? "Active" : fmtLogStamp(s.endMs);
+    let durationStr = "—";
+    let notesStr = s.notes || "—";
+
+    if (s.kind === "audit") {
+      sessionType = "Break skipped";
+      endStr = "—";
+      durationStr = "—";
+      notesStr = s.message || "—";
+    } else {
+      const dur = sessionDurationMs(s);
+      const durationMinutes = Math.max(0, Math.round(dur / 60000));
+      const roundedDurationMinutes = Math.max(0, roundMinutes(durationMinutes, getRoundingInterval()));
+      let roundedWorkedMinutes = roundedDurationMinutes;
+
+      if (s.kind === "work") {
+        const sessionStart = s.startMs;
+        const sessionEnd = s.endMs == null ? nowMs() : s.endMs;
+        const unpaidLunchOverlapMs = state.breaks
+          .filter((b) => b.isPaidBreak === false)
+          .reduce((total, b) => {
+            const breakEnd = b.endMs == null ? nowMs() : b.endMs;
+            return total + clampToRange(sessionStart, sessionEnd, b.startMs, breakEnd);
+          }, 0);
+
+        const workedMs = Math.max(0, (sessionEnd - sessionStart) - unpaidLunchOverlapMs);
+        const workedMinutes = Math.max(0, Math.round(workedMs / 60000));
+        roundedWorkedMinutes = Math.max(0, roundMinutes(workedMinutes, getRoundingInterval()));
+        durationStr = formatMinutes(roundedWorkedMinutes);
+      } else {
+        durationStr = formatMinutes(roundedDurationMinutes);
+        sessionType = getBreakLabel(s.sequence);
+      }
+    }
+
+    const sourceLabel = getItemSourceLabel(s);
+    const canDeleteManual = s.manual && (s.kind === "work" || s.kind === "break");
 
     return `
-      <div class="log-item" data-log-id="${s.id}">
-        <div class="log-header">
-          ${manualBadge}
-          ${s.manual ? `<button class="btn btn-delete-manual" type="button" data-delete-manual-id="${s.id}">Delete</button>` : ""}
+      <div class="log-item log-row" data-log-id="${s.id}">
+        <div class="log-row-cell"><div class="v">${startStr}</div></div>
+        <div class="log-row-cell"><div class="v">${sessionType}</div></div>
+        <div class="log-row-cell"><div class="v">${endStr}</div></div>
+        <div class="log-row-cell"><div class="v">${durationStr}</div></div>
+        <div class="log-row-cell log-row-source">
+          <span class="v">${sourceLabel}</span>
+          ${canDeleteManual ? `<button class="btn btn-delete-manual" type="button" data-delete-manual-id="${s.id}">Delete</button>` : ""}
         </div>
-        <div class="row">
-          <div>
-            <div class="k">Start</div>
-            <div class="v">${startStr}</div>
-          </div>
-          <div>
-            <div class="k">Type</div>
-            <div class="v">${title}</div>
-          </div>
-          <div>
-            <div class="k">End</div>
-            <div class="v">${endStr}</div>
-          </div>
-          <div>
-            <div class="k">${s.kind === "work" ? "Worked" : "Duration"}</div>
-            <div class="v">${formatMinutes(s.kind === "work" ? roundedWorkedMinutes : roundedDurationMinutes)}</div>
-          </div>
-          <div>
-            <div class="k">Source</div>
-            <div class="v">${sourceLabel}</div>
-          </div>
-          ${s.notes ? `<div><div class="k">Notes</div><div class="v">${s.notes}</div></div>` : ""}
-        </div>
+        <div class="log-row-cell log-row-notes"><div class="v">${notesStr}</div></div>
       </div>
     `;
   }).join("");
