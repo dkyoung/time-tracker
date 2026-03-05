@@ -153,6 +153,9 @@
           <div class="log-grid-scroll">
             <div class="log-grid-filters" role="row">
               <div class="log-filter-spacer" aria-hidden="true"></div>
+              <div class="log-filter-clear">
+                <button id="btnClearLogFilters" class="btn" type="button">Clear Filters</button>
+              </div>
               <div>
                 <select id="logFilterType" aria-label="Filter by session type">
                   <option value="all">All</option>
@@ -165,9 +168,6 @@
               </div>
               <div>
                 <input id="logFilterDate" type="date" aria-label="Filter by start date" />
-              </div>
-              <div>
-                <button id="btnClearLogFilters" class="btn" type="button">Clear Filters</button>
               </div>
               <div>
                 <select id="logFilterSource" aria-label="Filter by source">
