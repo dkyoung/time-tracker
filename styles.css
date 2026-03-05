@@ -346,6 +346,13 @@ body{
   min-height: 1px;
 }
 
+
+@media (max-width: 520px){
+  .log-filter-spacer{ display:none; }
+  .log-grid-filters{ min-width: 0; }
+  .log-filter-clear{ justify-self: start; }
+}
+
 .log{
   display:flex;
   flex-direction:column;
