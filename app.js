@@ -258,6 +258,18 @@ function parseDateTimeToMs(dateValue, timeValue) {
   return new Date(`${dateValue}T${timeValue}`).getTime();
 }
 
+function fmtLogStamp(ms) {
+  const d = new Date(ms);
+  const dateStr = d.toLocaleDateString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  });
+  const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${dateStr} ${timeStr}`;
+}
+
 function expectedMinutesForType(type) {
   if (type === "break_1" || type === "break_3") return 15;
   if (type === "break_2") return 30;
@@ -1156,7 +1168,7 @@ function renderLogs() {
     const start = new Date(s.startMs);
     const end = s.endMs == null ? null : new Date(s.endMs);
     if (s.kind === "audit") {
-      const stamp = `${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      const stamp = fmtLogStamp(s.startMs);
       return `
       <div class="log-item" data-log-id="${s.id}">
         <div class="row">
@@ -1190,9 +1202,9 @@ function renderLogs() {
     const sourceLabel = s.manual ? "Manual" : "Auto";
     const manualBadge = s.manual ? '<span class="badge-manual">Manual</span>' : "";
 
-    const startStr = `${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    const startStr = fmtLogStamp(s.startMs);
     const endStr = end
-      ? `${end.toLocaleDateString()} ${end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+      ? fmtLogStamp(s.endMs)
       : "Active";
 
     return `
