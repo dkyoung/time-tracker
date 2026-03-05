@@ -817,6 +817,78 @@ function exportBackup() {
   renderLastBackup();
 }
 
+function validateAndMigrateBackupPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, error: "Invalid backup file." };
+  }
+
+  const meta = payload.meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta) || meta.app !== "Time Tracker") {
+    return { ok: false, error: "This backup file is not from Time Tracker." };
+  }
+
+  const data = payload.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return { ok: false, error: "Invalid backup file." };
+  }
+
+  if (!Array.isArray(data.sessions)) {
+    return { ok: false, error: "Invalid backup file (missing sessions)." };
+  }
+
+  const warnings = [];
+  if (meta.storageKey && meta.storageKey !== STORAGE_KEY) {
+    warnings.push(`Backup storage key mismatch: expected ${STORAGE_KEY}, got ${meta.storageKey}`);
+  }
+
+  let backupVersion = 1;
+  if (meta.version == null) {
+    warnings.push("Backup file is missing meta.version. Assuming version 1.");
+  } else if (Number.isFinite(Number(meta.version))) {
+    backupVersion = Number(meta.version);
+  }
+
+  let migratedData = {
+    ...data,
+  };
+
+  if (backupVersion <= 1) {
+    migratedData = {
+      ...migratedData,
+      breaks: Array.isArray(migratedData.breaks) ? migratedData.breaks : [],
+      auditLogs: Array.isArray(migratedData.auditLogs) ? migratedData.auditLogs : [],
+      settings: (migratedData.settings && typeof migratedData.settings === "object" && !Array.isArray(migratedData.settings))
+        ? migratedData.settings
+        : {},
+      skippedBreaksByDate: sanitizeSkippedBreaksByDate(
+        migratedData.skippedBreaksByDate && typeof migratedData.skippedBreaksByDate === "object" && !Array.isArray(migratedData.skippedBreaksByDate)
+          ? migratedData.skippedBreaksByDate
+          : {}
+      ),
+    };
+  }
+
+  const roundingInterval = Number.isFinite(Number(migratedData?.settings?.roundingInterval))
+    ? Number(migratedData.settings.roundingInterval)
+    : 5;
+
+  const migratedState = {
+    sessions: migratedData.sessions,
+    breaks: migratedData.breaks,
+    auditLogs: migratedData.auditLogs,
+    settings: {
+      roundingInterval,
+    },
+    skippedBreaksByDate: migratedData.skippedBreaksByDate,
+  };
+
+  return {
+    ok: true,
+    state: migratedState,
+    warnings,
+  };
+}
+
 function importBackupFromFile(evt) {
   const input = evt.target;
   if (!(input instanceof HTMLInputElement)) return;
@@ -828,24 +900,18 @@ function importBackupFromFile(evt) {
   reader.onload = () => {
     try {
       const payload = JSON.parse(String(reader.result || ""));
-      const data = payload && typeof payload === "object" ? payload.data : null;
-      const storageKey = payload?.meta?.storageKey;
-
-      if (!data || typeof data !== "object" || Array.isArray(data)) {
-        window.alert("Invalid backup file.");
+      const result = validateAndMigrateBackupPayload(payload);
+      if (!result.ok) {
+        window.alert(result.error);
         return;
       }
 
-      if (!storageKey) {
-        console.warn("Backup file is missing meta.storageKey.");
-      } else if (storageKey !== STORAGE_KEY) {
-        console.warn(`Backup storage key mismatch: expected ${STORAGE_KEY}, got ${storageKey}`);
-      }
+      result.warnings.forEach((warning) => console.warn(warning));
 
       const shouldImport = window.confirm("Importing will overwrite the current data on this device. Continue?");
       if (!shouldImport) return;
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(result.state));
       localStorage.setItem(LAST_IMPORT_KEY, String(Date.now()));
       state = loadState();
       renderAll();
