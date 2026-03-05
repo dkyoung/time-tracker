@@ -184,12 +184,15 @@
         <section class="settings-section" aria-label="Backup settings">
           <h3 class="h3">Backup</h3>
           <div class="muted">
-            Export creates a .json file you can save to Files (iCloud Drive) or any cloud app.
+            Export creates a .json file you can save to Files (iCloud Drive) or any cloud app. Import restores from a saved backup.
           </div>
           <div class="settings-row settings-row--actions">
             <button id="btnExportBackup" class="btn" type="button">Export Backup</button>
+            <button id="btnImportBackup" class="btn" type="button">Import Backup</button>
+            <input id="importBackupInput" type="file" accept=".json,application/json" hidden />
           </div>
           <div class="muted">Last backup: <span id="lastBackupLabel">Never</span></div>
+          <div class="muted">Last Imported from Backup: <span id="lastImportLabel">Never</span></div>
         </section>
       </section>
     </main>

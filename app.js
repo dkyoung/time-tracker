@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = "tt_v1";
 const LAST_BACKUP_KEY = "tt_last_backup_ts";
+const LAST_IMPORT_KEY = "tt_last_import_ts";
 const BREAK_PLAN_MINUTES = [15, 30, 15];
 
 const els = {
@@ -60,7 +61,10 @@ const els = {
   roundingInterval: document.getElementById("roundingInterval"),
   roundingExample: document.getElementById("roundingExample"),
   btnExportBackup: document.getElementById("btnExportBackup"),
+  btnImportBackup: document.getElementById("btnImportBackup"),
+  importBackupInput: document.getElementById("importBackupInput"),
   lastBackupLabel: document.getElementById("lastBackupLabel"),
+  lastImportLabel: document.getElementById("lastImportLabel"),
 };
 
 // ---------------------------
@@ -394,6 +398,7 @@ els.tabLogs.addEventListener("click", () => setTab("logs"));
 els.tabSettings.addEventListener("click", () => {
   setTab("settings");
   renderLastBackup();
+  renderLastImport();
 });
 
 // ---------------------------
@@ -686,6 +691,10 @@ els.roundingInterval?.addEventListener("change", (evt) => {
   updateRoundingExample();
 });
 els.btnExportBackup?.addEventListener("click", exportBackup);
+els.btnImportBackup?.addEventListener("click", () => {
+  els.importBackupInput?.click();
+});
+els.importBackupInput?.addEventListener("change", importBackupFromFile);
 els.btnAddManualLog?.addEventListener("click", openManualForm);
 els.btnCancelManual?.addEventListener("click", closeManualForm);
 els.manualLogForm?.addEventListener("submit", saveManualLog);
@@ -737,6 +746,32 @@ function renderLastBackup() {
   els.lastBackupLabel.textContent = formatted;
 }
 
+function renderLastImport() {
+  if (!els.lastImportLabel) return;
+
+  const raw = localStorage.getItem(LAST_IMPORT_KEY);
+  if (!raw) {
+    els.lastImportLabel.textContent = "Never";
+    return;
+  }
+
+  const timestamp = Number(raw);
+  if (!Number.isFinite(timestamp)) {
+    els.lastImportLabel.textContent = "Never";
+    return;
+  }
+
+  const formatted = new Date(timestamp).toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  els.lastImportLabel.textContent = formatted;
+}
+
 function buildBackupFilename(date = new Date()) {
   const year = date.getFullYear();
   const month = pad2(date.getMonth() + 1);
@@ -780,6 +815,54 @@ function exportBackup() {
 
   localStorage.setItem(LAST_BACKUP_KEY, String(Date.now()));
   renderLastBackup();
+}
+
+function importBackupFromFile(evt) {
+  const input = evt.target;
+  if (!(input instanceof HTMLInputElement)) return;
+
+  const [file] = input.files || [];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const payload = JSON.parse(String(reader.result || ""));
+      const data = payload && typeof payload === "object" ? payload.data : null;
+      const storageKey = payload?.meta?.storageKey;
+
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        window.alert("Invalid backup file.");
+        return;
+      }
+
+      if (!storageKey) {
+        console.warn("Backup file is missing meta.storageKey.");
+      } else if (storageKey !== STORAGE_KEY) {
+        console.warn(`Backup storage key mismatch: expected ${STORAGE_KEY}, got ${storageKey}`);
+      }
+
+      const shouldImport = window.confirm("Importing will overwrite the current data on this device. Continue?");
+      if (!shouldImport) return;
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(LAST_IMPORT_KEY, String(Date.now()));
+      state = loadState();
+      renderAll();
+      renderLastImport();
+    } catch {
+      window.alert("Invalid backup file.");
+    } finally {
+      input.value = "";
+    }
+  };
+
+  reader.onerror = () => {
+    window.alert("Invalid backup file.");
+    input.value = "";
+  };
+
+  reader.readAsText(file);
 }
 
 function openSmsComposer(message) {
@@ -1087,6 +1170,7 @@ function updateUI() {
   renderLogs();
   updateRoundingExample();
   renderLastBackup();
+  renderLastImport();
 }
 
 function renderAll() {
@@ -1105,6 +1189,7 @@ function renderAll() {
   }
   updateRoundingExample();
   renderLastBackup();
+  renderLastImport();
 }
 
 // Big timer should always be live, even if user stays on Logs tab.
