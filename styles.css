@@ -470,6 +470,9 @@ body{
 
 .settings-row--actions {
   max-width: none;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .settings-row--actions .btn {
