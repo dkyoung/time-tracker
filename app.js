@@ -1196,6 +1196,22 @@ function renderLogs() {
     const dur = sessionDurationMs(s);
     const durationMinutes = Math.max(0, Math.round(dur / 60000));
     const roundedDurationMinutes = Math.max(0, roundMinutes(durationMinutes, getRoundingInterval()));
+    let roundedWorkedMinutes = roundedDurationMinutes;
+
+    if (s.kind === "work") {
+      const sessionStart = s.startMs;
+      const sessionEnd = s.endMs == null ? nowMs() : s.endMs;
+      const unpaidLunchOverlapMs = state.breaks
+        .filter((b) => b.isPaidBreak === false)
+        .reduce((total, b) => {
+          const breakEnd = b.endMs == null ? nowMs() : b.endMs;
+          return total + clampToRange(sessionStart, sessionEnd, b.startMs, breakEnd);
+        }, 0);
+
+      const workedMs = Math.max(0, (sessionEnd - sessionStart) - unpaidLunchOverlapMs);
+      const workedMinutes = Math.max(0, Math.round(workedMs / 60000));
+      roundedWorkedMinutes = Math.max(0, roundMinutes(workedMinutes, getRoundingInterval()));
+    }
     const title = s.kind === "break"
       ? getBreakLabel(s.sequence)
       : "Work session";
@@ -1227,8 +1243,8 @@ function renderLogs() {
             <div class="v">${endStr}</div>
           </div>
           <div>
-            <div class="k">Duration</div>
-            <div class="v">${formatMinutes(roundedDurationMinutes)}</div>
+            <div class="k">${s.kind === "work" ? "Worked" : "Duration"}</div>
+            <div class="v">${formatMinutes(s.kind === "work" ? roundedWorkedMinutes : roundedDurationMinutes)}</div>
           </div>
           <div>
             <div class="k">Source</div>
