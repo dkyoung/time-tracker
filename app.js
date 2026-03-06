@@ -985,7 +985,6 @@ function openSmsComposer(message) {
 }
 
 function getWeeklyHoursText() {
-  const roundingInterval = getRoundingInterval();
   const weekStart = startOfWeekMs(new Date());
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dailyEntries = [];
@@ -994,22 +993,19 @@ function getWeeklyHoursText() {
     const dayDate = new Date(weekStart + (i * 24 * 60 * 60 * 1000));
     const dayStart = startOfDayMs(dayDate);
     const dayEnd = endOfDayMs(dayDate);
-    const netMinutes = Math.max(
-      0,
-      roundMinutes(Math.round(netInRangeMs(dayStart, dayEnd) / 60000), roundingInterval),
-    );
+    const netMs = Math.max(0, netInRangeMs(dayStart, dayEnd));
 
-    if (netMinutes <= 0) continue;
+    if (netMs <= 0) continue;
 
     dailyEntries.push({
       label: `${dayLabels[i]}-${formatShortUsDate(dayDate)}`,
-      minutes: netMinutes,
+      ms: netMs,
     });
   }
 
-  const weeklyTotalMinutes = dailyEntries.reduce((sum, entry) => sum + entry.minutes, 0);
-  const lines = dailyEntries.map((entry) => `${entry.label}: ${formatDecimalHours(entry.minutes)} Hrs.`);
-  lines.push(`Weekly Total: ${formatDecimalHours(weeklyTotalMinutes)} Hrs.`);
+  const weeklyTotalMs = dailyEntries.reduce((sum, entry) => sum + entry.ms, 0);
+  const lines = dailyEntries.map((entry) => `${entry.label}: ${formatDecimalHoursFromMs(entry.ms)} Hrs.`);
+  lines.push(`Weekly Total: ${formatDecimalHoursFromMs(weeklyTotalMs)} Hrs.`);
   return lines.join("\n");
 }
 
@@ -1022,6 +1018,11 @@ function formatShortUsDate(date) {
 
 function formatDecimalHours(minutes) {
   const decimalHours = minutes / 60;
+  return decimalHours.toFixed(2).replace(/\.00$/, "").replace(/(\.\d*[1-9])0$/, "$1");
+}
+
+function formatDecimalHoursFromMs(ms) {
+  const decimalHours = ms / (60 * 60 * 1000);
   return decimalHours.toFixed(2).replace(/\.00$/, "").replace(/(\.\d*[1-9])0$/, "$1");
 }
 
