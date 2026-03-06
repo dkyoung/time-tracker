@@ -985,12 +985,44 @@ function openSmsComposer(message) {
 }
 
 function getWeeklyHoursText() {
-  const weekNetEl = document.getElementById("weekNet");
-  if (!weekNetEl || !weekNetEl.textContent) {
-    return "Weekly total hours: N/A";
+  const roundingInterval = getRoundingInterval();
+  const weekStart = startOfWeekMs(new Date());
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dailyEntries = [];
+
+  for (let i = 0; i < 7; i += 1) {
+    const dayDate = new Date(weekStart + (i * 24 * 60 * 60 * 1000));
+    const dayStart = startOfDayMs(dayDate);
+    const dayEnd = endOfDayMs(dayDate);
+    const netMinutes = Math.max(
+      0,
+      roundMinutes(Math.round(netInRangeMs(dayStart, dayEnd) / 60000), roundingInterval),
+    );
+
+    if (netMinutes <= 0) continue;
+
+    dailyEntries.push({
+      label: `${dayLabels[i]}-${formatShortUsDate(dayDate)}`,
+      minutes: netMinutes,
+    });
   }
 
-  return `Weekly total hours: ${weekNetEl.textContent.trim()}`;
+  const weeklyTotalMinutes = dailyEntries.reduce((sum, entry) => sum + entry.minutes, 0);
+  const lines = dailyEntries.map((entry) => `${entry.label}: ${formatDecimalHours(entry.minutes)} Hrs.`);
+  lines.push(`Weekly Total: ${formatDecimalHours(weeklyTotalMinutes)} Hrs.`);
+  return lines.join("\n");
+}
+
+function formatShortUsDate(date) {
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const year = date.getFullYear() % 100;
+  return `${month}/${day}/${year}`;
+}
+
+function formatDecimalHours(minutes) {
+  const decimalHours = minutes / 60;
+  return decimalHours.toFixed(2).replace(/\.00$/, "").replace(/(\.\d*[1-9])0$/, "$1");
 }
 
 // ---------------------------
