@@ -63,8 +63,6 @@ const els = {
   manualHint: document.getElementById("manualHint"),
   manualError: document.getElementById("manualError"),
 
-  roundingInterval: document.getElementById("roundingInterval"),
-  roundingExample: document.getElementById("roundingExample"),
   btnExportBackup: document.getElementById("btnExportBackup"),
   btnImportBackup: document.getElementById("btnImportBackup"),
   importBackupInput: document.getElementById("importBackupInput"),
@@ -80,9 +78,6 @@ function defaultState() {
     sessions: [], // { id, startMs, endMs|null }
     breaks: [], // { id, startMs, endMs|null, plannedMinutes, sequence }
     auditLogs: [], // { id, kind, timestampMs, message, breakSequence, endedActiveBreak, manual }
-    settings: {
-      roundingInterval: 5,
-    },
     skippedBreaksByDate: {}, // { YYYY-MM-DD: [bool,bool,bool] }
   };
 }
@@ -106,10 +101,6 @@ function loadState() {
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.sessions)) return defaultState();
-
-    const safeInterval = Number.isFinite(Number(parsed?.settings?.roundingInterval))
-      ? Number(parsed.settings.roundingInterval)
-      : 5;
 
     const next = {
       sessions: parsed.sessions.map((session) => ({
@@ -137,9 +128,6 @@ function loadState() {
         manual: item.manual === true,
         createdAt: Number.isFinite(item.createdAt) ? item.createdAt : (Number.isFinite(item.timestampMs) ? item.timestampMs : nowMs()),
       })),
-      settings: {
-        roundingInterval: safeInterval,
-      },
       skippedBreaksByDate: sanitizeSkippedBreaksByDate(parsed?.skippedBreaksByDate),
     };
     return next;
@@ -178,40 +166,20 @@ function fmtHM(ms) {
   return `${h}:${pad2(m)}`;
 }
 
+function minutesFromMs(ms) {
+  return Math.max(0, ms / 60000);
+}
+
 function formatMinutes(minutes) {
   if (displayMode === "decimal") {
     const decimalHours = minutes / 60;
     return decimalHours.toFixed(2);
   }
 
-  const hrs = Math.floor(minutes / 60);
-  const mins = Math.floor(minutes % 60);
+  const totalMinutes = Math.max(0, Math.round(minutes));
+  const hrs = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
   return `${hrs}:${mins.toString().padStart(2, "0")}`;
-}
-
-
-function roundMinutes(minutes, interval) {
-  if (!interval || interval === 0) return minutes;
-  return Math.round(minutes / interval) * interval;
-}
-
-function getRoundingInterval() {
-  const interval = Number(state?.settings?.roundingInterval);
-  return Number.isFinite(interval) ? interval : 5;
-}
-
-function updateRoundingExample() {
-  const interval = getRoundingInterval();
-  if (!els.roundingExample) return;
-
-  if (interval === 0) {
-    els.roundingExample.textContent = "Examples: exact minutes (no rounding)";
-    return;
-  }
-
-  const rounded2 = roundMinutes(2, interval);
-  const rounded7 = roundMinutes(7, interval);
-  els.roundingExample.textContent = `Examples: 2 → ${rounded2} minutes, 7 → ${rounded7} minutes`;
 }
 
 function startOfDayMs(d) {
@@ -701,13 +669,6 @@ els.btnToggleFormat?.addEventListener("click", () => {
 
   updateUI();
 });
-els.roundingInterval?.addEventListener("change", (evt) => {
-  const nextValue = Number(evt.target.value);
-  state.settings.roundingInterval = Number.isFinite(nextValue) ? nextValue : 5;
-  saveState(state);
-  renderAll();
-  updateRoundingExample();
-});
 els.btnExportBackup?.addEventListener("click", exportBackup);
 els.btnImportBackup?.addEventListener("click", () => {
   els.importBackupInput?.click();
@@ -904,9 +865,6 @@ function validateAndMigrateBackupPayload(payload) {
       ...migratedData,
       breaks: Array.isArray(migratedData.breaks) ? migratedData.breaks : [],
       auditLogs: Array.isArray(migratedData.auditLogs) ? migratedData.auditLogs : [],
-      settings: (migratedData.settings && typeof migratedData.settings === "object" && !Array.isArray(migratedData.settings))
-        ? migratedData.settings
-        : {},
       skippedBreaksByDate: sanitizeSkippedBreaksByDate(
         migratedData.skippedBreaksByDate && typeof migratedData.skippedBreaksByDate === "object" && !Array.isArray(migratedData.skippedBreaksByDate)
           ? migratedData.skippedBreaksByDate
@@ -915,17 +873,10 @@ function validateAndMigrateBackupPayload(payload) {
     };
   }
 
-  const roundingInterval = Number.isFinite(Number(migratedData?.settings?.roundingInterval))
-    ? Number(migratedData.settings.roundingInterval)
-    : 5;
-
   const migratedState = {
     sessions: migratedData.sessions,
     breaks: migratedData.breaks,
     auditLogs: migratedData.auditLogs,
-    settings: {
-      roundingInterval,
-    },
     skippedBreaksByDate: migratedData.skippedBreaksByDate,
   };
 
@@ -985,7 +936,6 @@ function openSmsComposer(message) {
 }
 
 function getWeeklyHoursText() {
-  const roundingInterval = getRoundingInterval();
   const weekStart = startOfWeekMs(new Date());
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dailyEntries = [];
@@ -994,22 +944,19 @@ function getWeeklyHoursText() {
     const dayDate = new Date(weekStart + (i * 24 * 60 * 60 * 1000));
     const dayStart = startOfDayMs(dayDate);
     const dayEnd = endOfDayMs(dayDate);
-    const netMinutes = Math.max(
-      0,
-      roundMinutes(Math.round(netInRangeMs(dayStart, dayEnd) / 60000), roundingInterval),
-    );
+    const netMs = Math.max(0, netInRangeMs(dayStart, dayEnd));
 
-    if (netMinutes <= 0) continue;
+    if (netMs <= 0) continue;
 
     dailyEntries.push({
       label: `${dayLabels[i]}-${formatShortUsDate(dayDate)}`,
-      minutes: netMinutes,
+      ms: netMs,
     });
   }
 
-  const weeklyTotalMinutes = dailyEntries.reduce((sum, entry) => sum + entry.minutes, 0);
-  const lines = dailyEntries.map((entry) => `${entry.label}: ${formatDecimalHours(entry.minutes)} Hrs.`);
-  lines.push(`Weekly Total: ${formatDecimalHours(weeklyTotalMinutes)} Hrs.`);
+  const weeklyTotalMs = dailyEntries.reduce((sum, entry) => sum + entry.ms, 0);
+  const lines = dailyEntries.map((entry) => `${entry.label}: ${formatDecimalHours(minutesFromMs(entry.ms))} Hrs.`);
+  lines.push(`Weekly Total: ${formatDecimalHours(minutesFromMs(weeklyTotalMs))} Hrs.`);
   return lines.join("\n");
 }
 
@@ -1189,13 +1136,12 @@ function renderTotals() {
   const todayUnpaidBreaksMs = unpaidBreaksInRangeMs(dayStart, dayEnd);
   const todayNetMs = Math.max(0, todayGrossMs - todayUnpaidBreaksMs);
 
-  const roundingInterval = getRoundingInterval();
-  const todayGrossMinutes = Math.max(0, roundMinutes(Math.round(todayGrossMs / 60000), roundingInterval));
-  const todayPaidBreaksMinutes = Math.max(0, roundMinutes(Math.round(todayPaidBreaksMs / 60000), roundingInterval));
-  const todayUnpaidBreaksMinutes = Math.max(0, roundMinutes(Math.round(todayUnpaidBreaksMs / 60000), roundingInterval));
-  const todayNetMinutes = Math.max(0, roundMinutes(Math.round(todayNetMs / 60000), roundingInterval));
-  const weekNetMinutes = Math.max(0, roundMinutes(Math.round(netInRangeMs(weekStart, weekEnd) / 60000), roundingInterval));
-  const monthNetMinutes = Math.max(0, roundMinutes(Math.round(netInRangeMs(monthStart, monthEnd) / 60000), roundingInterval));
+  const todayGrossMinutes = minutesFromMs(todayGrossMs);
+  const todayPaidBreaksMinutes = minutesFromMs(todayPaidBreaksMs);
+  const todayUnpaidBreaksMinutes = minutesFromMs(todayUnpaidBreaksMs);
+  const todayNetMinutes = minutesFromMs(todayNetMs);
+  const weekNetMinutes = minutesFromMs(netInRangeMs(weekStart, weekEnd));
+  const monthNetMinutes = minutesFromMs(netInRangeMs(monthStart, monthEnd));
   const paidStr = formatMinutes(todayPaidBreaksMinutes);
   const unpaidStr = formatMinutes(todayUnpaidBreaksMinutes);
 
@@ -1300,9 +1246,8 @@ function renderLogs() {
       notesStr = s.message || "—";
     } else {
       const dur = sessionDurationMs(s);
-      const durationMinutes = Math.max(0, Math.round(dur / 60000));
-      const roundedDurationMinutes = Math.max(0, roundMinutes(durationMinutes, getRoundingInterval()));
-      let roundedWorkedMinutes = roundedDurationMinutes;
+      const durationMinutes = minutesFromMs(dur);
+      let workedMinutes = durationMinutes;
 
       if (s.kind === "work") {
         const sessionStart = s.startMs;
@@ -1315,11 +1260,10 @@ function renderLogs() {
           }, 0);
 
         const workedMs = Math.max(0, (sessionEnd - sessionStart) - unpaidLunchOverlapMs);
-        const workedMinutes = Math.max(0, Math.round(workedMs / 60000));
-        roundedWorkedMinutes = Math.max(0, roundMinutes(workedMinutes, getRoundingInterval()));
-        durationStr = formatMinutes(roundedWorkedMinutes);
+        workedMinutes = minutesFromMs(workedMs);
+        durationStr = formatMinutes(workedMinutes);
       } else {
-        durationStr = formatMinutes(roundedDurationMinutes);
+        durationStr = formatMinutes(durationMinutes);
         sessionType = getBreakLabel(s.sequence);
       }
     }
@@ -1348,7 +1292,6 @@ function renderLogs() {
 function updateUI() {
   renderTotals();
   renderLogs();
-  updateRoundingExample();
   renderLastBackup();
   renderLastImport();
 }
@@ -1363,11 +1306,6 @@ function renderAll() {
   renderBigTimer();
   renderTotals();
   renderLogs();
-
-  if (els.roundingInterval) {
-    els.roundingInterval.value = String(getRoundingInterval());
-  }
-  updateRoundingExample();
   renderLastBackup();
   renderLastImport();
 }
