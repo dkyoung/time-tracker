@@ -219,11 +219,19 @@ body{
   padding: 6px 14px;
   border-radius: 999px;
   cursor: pointer;
-  font-size: 1.05rem;
+  font-size: .95rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .weekly-share-actions button:hover {
   opacity: 0.88;
+}
+
+.share-feedback{
+  min-height: 1.1em;
+  color: var(--muted2);
+  font-size: .82rem;
 }
 
 #btnToggleFormat {
@@ -250,11 +258,11 @@ body{
   }
 
   .weekly-share-actions{
-    flex: 1 1 auto;
+    flex: 1 1 100%;
   }
 
   #btnToggleFormat{
-    margin-left: 0;
+    margin-left: auto;
     margin-top: 2px;
   }
 }
