@@ -49,6 +49,7 @@ const els = {
   btnAddManualLog: document.getElementById("btnAddManualLog"),
   btnCancelManual: document.getElementById("btnCancelManual"),
   btnTextWeek: document.getElementById("btnTextWeek"),
+  btnEmailWeek: document.getElementById("btnEmailWeek"),
   btnToggleFormat: document.getElementById("btnToggleFormat"),
   skipBreakTarget: document.getElementById("skipBreakTarget"),
 
@@ -659,6 +660,10 @@ els.btnTextWeek?.addEventListener("click", () => {
   const msg = getWeeklyHoursText();
   openSmsComposer(msg);
 });
+els.btnEmailWeek?.addEventListener("click", () => {
+  const msg = getWeeklyHoursText();
+  openEmailComposer("Weekly Hours Summary", msg);
+});
 els.btnToggleFormat?.addEventListener("click", () => {
   displayMode = displayMode === "time" ? "decimal" : "time";
 
@@ -932,6 +937,13 @@ function importBackupFromFile(evt) {
 function openSmsComposer(message) {
   const encoded = encodeURIComponent(message);
   const url = `sms:?body=${encoded}`;
+  window.location.href = url;
+}
+
+function openEmailComposer(subject, body) {
+  const encodedSubject = encodeURIComponent(subject);
+  const encodedBody = encodeURIComponent(body);
+  const url = `mailto:?subject=${encodedSubject}&body=${encodedBody}`;
   window.location.href = url;
 }
 
