@@ -963,10 +963,6 @@ function getWeeklyHoursText() {
   return lines.join("\n");
 }
 
-function canUseNativeShare() {
-  return typeof navigator !== "undefined" && typeof navigator.share === "function";
-}
-
 let shareFeedbackTimer = null;
 
 function showShareFeedback(message) {
@@ -983,39 +979,17 @@ function showShareFeedback(message) {
   }, 2200);
 }
 
-function syncWeeklyShareButtons() {
-  const hasNativeShare = canUseNativeShare();
-
-  if (els.btnShareWeek) {
-    els.btnShareWeek.hidden = !hasNativeShare;
+async function copyTextToClipboard(text) {
+  if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back to execCommand copy below.
+    }
   }
-
-  if (els.btnCopyWeek) {
-    els.btnCopyWeek.hidden = hasNativeShare;
-  }
-}
-
-async function shareWeeklyHours() {
-  const text = getWeeklyHoursText();
 
   try {
-    await navigator.share({
-      title: "Weekly Hours Summary",
-      text,
-    });
-  } catch (error) {
-    if (error && error.name === "AbortError") return;
-    showShareFeedback("Unable to share weekly hours.");
-  }
-}
-
-async function copyWeeklyHoursToClipboard() {
-  const text = getWeeklyHoursText();
-
-  try {
-    await navigator.clipboard.writeText(text);
-    showShareFeedback("Weekly hours copied to clipboard.");
-  } catch {
     const textArea = document.createElement("textarea");
     textArea.value = text;
     textArea.setAttribute("readonly", "");
@@ -1026,14 +1000,49 @@ async function copyWeeklyHoursToClipboard() {
 
     const copied = document.execCommand("copy");
     textArea.remove();
+    return copied;
+  } catch {
+    return false;
+  }
+}
 
+async function shareWeeklyHours() {
+  const text = getWeeklyHoursText();
+
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+    const copied = await copyTextToClipboard(text);
+    showShareFeedback(copied ? "Weekly hours copied to clipboard." : "Unable to share or copy weekly hours.");
+    return;
+  }
+
+  try {
+    await navigator.share({
+      title: "Weekly Hours Summary",
+      text,
+    });
+  } catch (error) {
+    if (error && error.name === "AbortError") return;
+
+    const copied = await copyTextToClipboard(text);
     if (copied) {
       showShareFeedback("Weekly hours copied to clipboard.");
       return;
     }
 
-    showShareFeedback("Unable to copy weekly hours.");
+    showShareFeedback("Unable to share or copy weekly hours.");
   }
+}
+
+async function copyWeeklyHoursToClipboard() {
+  const text = getWeeklyHoursText();
+  const copied = await copyTextToClipboard(text);
+
+  if (copied) {
+    showShareFeedback("Weekly hours copied to clipboard.");
+    return;
+  }
+
+  showShareFeedback("Unable to copy weekly hours.");
 }
 
 function formatShortUsDate(date) {
@@ -1376,7 +1385,6 @@ function renderAll() {
   const didCleanupSkips = cleanupSkippedBreaks(getDateKey());
   if (didCleanupSkips) saveState(state);
 
-  syncWeeklyShareButtons();
   renderHeader();
   renderButtons();
   renderStatus();
