@@ -209,6 +209,7 @@ body{
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1 1 auto;
   flex-wrap: wrap;
 }
 
@@ -232,6 +233,7 @@ body{
   min-height: 1.1em;
   color: var(--muted2);
   font-size: .82rem;
+  flex: 1 1 100%;
 }
 
 #btnToggleFormat {
