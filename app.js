@@ -48,8 +48,9 @@ const els = {
   btnClearLogs: document.getElementById("btnClearLogs"),
   btnAddManualLog: document.getElementById("btnAddManualLog"),
   btnCancelManual: document.getElementById("btnCancelManual"),
-  btnTextWeek: document.getElementById("btnTextWeek"),
-  btnEmailWeek: document.getElementById("btnEmailWeek"),
+  btnShareWeek: document.getElementById("btnShareWeek"),
+  btnCopyWeek: document.getElementById("btnCopyWeek"),
+  shareFeedback: document.getElementById("shareFeedback"),
   btnToggleFormat: document.getElementById("btnToggleFormat"),
   skipBreakTarget: document.getElementById("skipBreakTarget"),
 
@@ -656,14 +657,8 @@ els.btnEndBreak.addEventListener("click", endBreak);
 els.btnSkipBreak?.addEventListener("click", skipBreak);
 els.btnClearSession.addEventListener("click", clearCurrentSession);
 els.btnClearLogs.addEventListener("click", clearLogs);
-els.btnTextWeek?.addEventListener("click", () => {
-  const msg = getWeeklyHoursText();
-  openSmsComposer(msg);
-});
-els.btnEmailWeek?.addEventListener("click", () => {
-  const msg = getWeeklyHoursText();
-  openEmailComposer("Weekly Hours Summary", msg);
-});
+els.btnShareWeek?.addEventListener("click", shareWeeklyHours);
+els.btnCopyWeek?.addEventListener("click", copyWeeklyHoursToClipboard);
 els.btnToggleFormat?.addEventListener("click", () => {
   displayMode = displayMode === "time" ? "decimal" : "time";
 
@@ -934,19 +929,6 @@ function importBackupFromFile(evt) {
   reader.readAsText(file);
 }
 
-function openSmsComposer(message) {
-  const encoded = encodeURIComponent(message);
-  const url = `sms:?body=${encoded}`;
-  window.location.href = url;
-}
-
-function openEmailComposer(subject, body) {
-  const encodedSubject = encodeURIComponent(subject);
-  const encodedBody = encodeURIComponent(body);
-  const url = `mailto:?subject=${encodedSubject}&body=${encodedBody}`;
-  window.location.href = url;
-}
-
 function getWeeklyHoursText() {
   const weekStart = startOfWeekMs(new Date());
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -967,9 +949,91 @@ function getWeeklyHoursText() {
   }
 
   const weeklyTotalMs = dailyEntries.reduce((sum, entry) => sum + entry.ms, 0);
-  const lines = dailyEntries.map((entry) => `${entry.label}: ${formatDecimalHours(minutesFromMs(entry.ms))} Hrs.`);
-  lines.push(`Weekly Total: ${formatDecimalHours(minutesFromMs(weeklyTotalMs))} Hrs.`);
+  const lines = ["Weekly Hours Summary", ""];
+
+  if (dailyEntries.length === 0) {
+    lines.push("No tracked hours this week.");
+  } else {
+    dailyEntries.forEach((entry) => {
+      lines.push(`${entry.label}: ${formatDecimalHours(minutesFromMs(entry.ms))} Hrs`);
+    });
+  }
+
+  lines.push("", `Weekly Total: ${formatDecimalHours(minutesFromMs(weeklyTotalMs))} Hrs`);
   return lines.join("\n");
+}
+
+function canUseNativeShare() {
+  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+}
+
+let shareFeedbackTimer = null;
+
+function showShareFeedback(message) {
+  if (!els.shareFeedback) return;
+
+  els.shareFeedback.textContent = message;
+
+  if (shareFeedbackTimer) {
+    clearTimeout(shareFeedbackTimer);
+  }
+
+  shareFeedbackTimer = setTimeout(() => {
+    if (els.shareFeedback) els.shareFeedback.textContent = "";
+  }, 2200);
+}
+
+function syncWeeklyShareButtons() {
+  const hasNativeShare = canUseNativeShare();
+
+  if (els.btnShareWeek) {
+    els.btnShareWeek.hidden = !hasNativeShare;
+  }
+
+  if (els.btnCopyWeek) {
+    els.btnCopyWeek.hidden = hasNativeShare;
+  }
+}
+
+async function shareWeeklyHours() {
+  const text = getWeeklyHoursText();
+
+  try {
+    await navigator.share({
+      title: "Weekly Hours Summary",
+      text,
+    });
+  } catch (error) {
+    if (error && error.name === "AbortError") return;
+    showShareFeedback("Unable to share weekly hours.");
+  }
+}
+
+async function copyWeeklyHoursToClipboard() {
+  const text = getWeeklyHoursText();
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showShareFeedback("Weekly hours copied to clipboard.");
+  } catch {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.setAttribute("readonly", "");
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.select();
+
+    const copied = document.execCommand("copy");
+    textArea.remove();
+
+    if (copied) {
+      showShareFeedback("Weekly hours copied to clipboard.");
+      return;
+    }
+
+    showShareFeedback("Unable to copy weekly hours.");
+  }
 }
 
 function formatShortUsDate(date) {
@@ -1312,6 +1376,7 @@ function renderAll() {
   const didCleanupSkips = cleanupSkippedBreaks(getDateKey());
   if (didCleanupSkips) saveState(state);
 
+  syncWeeklyShareButtons();
   renderHeader();
   renderButtons();
   renderStatus();
