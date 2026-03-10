@@ -517,10 +517,22 @@ body{
 
 .footer{
   margin-top: 14px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   background: rgba(18,26,43,.35);
   border-radius: 14px;
+  text-align: center;
+}
+
+.footer-line{
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.footer-line + .footer-line{
+  margin-top: 4px;
 }
 
 .logs-head-actions{
