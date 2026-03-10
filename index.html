@@ -216,7 +216,12 @@
         <div class="muted">
           Manage display preferences and backup data.
         </div>
-
+        
+<section class="settings-section" aria-label="App information">
+  <h3 class="h3">App</h3>
+  <div class="muted">Version: <span id="appVersionLabel">—</span></div>
+</section>
+        
         <hr class="settings-separator" />
 
         <section class="settings-section" aria-label="Backup settings">
@@ -224,6 +229,7 @@
           <div class="muted">
             Export creates a .json file you can save to Files (iCloud Drive) or any cloud app. Import restores from a saved backup.
           </div>
+       
           <div class="settings-row settings-row--actions">
             <button id="btnExportBackup" class="btn" type="button">Export Backup</button>
             <button id="btnImportBackup" class="btn" type="button">Import Backup</button>
