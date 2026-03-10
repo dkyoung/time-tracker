@@ -1414,4 +1414,8 @@ if ("serviceWorker" in navigator) {
       console.warn("Service worker registration failed:", error);
     });
   });
+  
 }
+navigator.serviceWorker.addEventListener("controllerchange", () => {
+  window.location.reload();
+});
