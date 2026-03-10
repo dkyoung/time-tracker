@@ -1412,14 +1412,57 @@ setInterval(() => {
 renderAll();
 setTab("dashboard");
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js", { scope: "./" }).catch((error) => {
-      console.warn("Service worker registration failed:", error);
-    });
-  });
-  
+let refreshingApp = false;
+let pendingServiceWorker = null;
+
+function showUpdateBanner(worker) {
+  pendingServiceWorker = worker;
+  if (els.updateBanner) {
+    els.updateBanner.hidden = false;
+  }
 }
-navigator.serviceWorker.addEventListener("controllerchange", () => {
-  window.location.reload();
+
+function hideUpdateBanner() {
+  pendingServiceWorker = null;
+  if (els.updateBanner) {
+    els.updateBanner.hidden = true;
+  }
+}
+
+els.btnRefreshApp?.addEventListener("click", () => {
+  if (pendingServiceWorker) {
+    pendingServiceWorker.postMessage({ type: "SKIP_WAITING" });
+  }
 });
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("./service-worker.js", { scope: "./" });
+
+      if (registration.waiting) {
+        showUpdateBanner(registration.waiting);
+      }
+
+      registration.addEventListener("updatefound", () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            showUpdateBanner(newWorker);
+          }
+        });
+      });
+
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshingApp) return;
+        refreshingApp = true;
+        hideUpdateBanner();
+        window.location.reload();
+      });
+    } catch (error) {
+      console.warn("Service worker registration failed:", error);
+    }
+  });
+}
