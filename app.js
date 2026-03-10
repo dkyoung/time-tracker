@@ -9,6 +9,10 @@ const els = {
   // header
   todayLabel: document.getElementById("todayLabel"),
 
+  // Refresh App after new version available
+  updateBanner: document.getElementById("updateBanner"),
+  btnRefreshApp: document.getElementById("btnRefreshApp"),
+  
   // tabs
   tabDashboard: document.getElementById("tabDashboard"),
   tabLogs: document.getElementById("tabLogs"),
