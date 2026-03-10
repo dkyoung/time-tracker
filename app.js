@@ -12,7 +12,7 @@ const els = {
   // Refresh App after new version available
   updateBanner: document.getElementById("updateBanner"),
   btnRefreshApp: document.getElementById("btnRefreshApp"),
-  
+  appVersionLabel: document.getElementById("appVersionLabel"),
   // tabs
   tabDashboard: document.getElementById("tabDashboard"),
   tabLogs: document.getElementById("tabLogs"),
@@ -1397,6 +1397,10 @@ function renderAll() {
   renderLogs();
   renderLastBackup();
   renderLastImport();
+
+  if (els.appVersionLabel) {
+    els.appVersionLabel.textContent = APP_VERSION;
+  }
 }
 
 // Big timer should always be live, even if user stays on Logs tab.
