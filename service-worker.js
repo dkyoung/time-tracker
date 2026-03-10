@@ -19,8 +19,6 @@ self.addEventListener("install", (event) => {
       return cache.addAll(APP_SHELL);
     })
   );
-
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -40,13 +38,18 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  const { request } = event;
+
+  if (request.method !== "GET") return;
+
+  const requestUrl = new URL(request.url);
+  if (requestUrl.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(request).then((cachedResponse) => {
       if (cachedResponse) return cachedResponse;
 
-      return fetch(event.request).then((networkResponse) => {
+      return fetch(request).then((networkResponse) => {
         if (!networkResponse || networkResponse.status !== 200) {
           return networkResponse;
         }
@@ -54,7 +57,7 @@ self.addEventListener("fetch", (event) => {
         const responseClone = networkResponse.clone();
 
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
+          cache.put(request, responseClone);
         });
 
         return networkResponse;
@@ -62,6 +65,7 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
