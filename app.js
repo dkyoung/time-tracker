@@ -48,6 +48,12 @@ const els = {
   btnStartBreak: document.getElementById("btnStartBreak"),
   btnEndBreak: document.getElementById("btnEndBreak"),
   btnSkipBreak: document.getElementById("btnSkipBreak"),
+  skipBreakModal: document.getElementById("skipBreakModal"),
+  skipBreakModalBackdrop: document.getElementById("skipBreakModalBackdrop"),
+  skipBreakModalBody: document.getElementById("skipBreakModalBody"),
+  btnCancelSkipBreak: document.getElementById("btnCancelSkipBreak"),
+  btnConfirmSkipBreak: document.getElementById("btnConfirmSkipBreak"),
+  appToast: document.getElementById("appToast"),
   btnClearSession: document.getElementById("btnClearSession"),
   btnClearLogs: document.getElementById("btnClearLogs"),
   btnAddManualLog: document.getElementById("btnAddManualLog"),
@@ -149,6 +155,9 @@ function saveState(s) {
 let state = loadState();
 let displayMode = "time"; // "time" or "decimal"
 const logFilters = { type: "all", source: "all", date: "", notes: "" };
+let pendingSkipBreakSequence = null;
+let skipBreakSubmitInFlight = false;
+let toastTimeoutId = null;
 
 // ---------------------------
 // Utilities
@@ -291,6 +300,26 @@ function getBreakShortLabel(sequence) {
   if (sequence === 2) return "Break 2 (Lunch)";
   if (sequence === 3) return "Break 3";
   return `Break ${sequence}`;
+}
+
+function getBreakPromptLabel(sequence) {
+  const minutes = BREAK_PLAN_MINUTES[sequence - 1];
+  return `Break ${sequence} - ${minutes}m`;
+}
+
+function showToast(message) {
+  if (!els.appToast) return;
+  if (toastTimeoutId) clearTimeout(toastTimeoutId);
+
+  els.appToast.textContent = message;
+  els.appToast.hidden = false;
+  els.appToast.classList.add("is-visible");
+
+  toastTimeoutId = setTimeout(() => {
+    els.appToast.classList.remove("is-visible");
+    els.appToast.hidden = true;
+    toastTimeoutId = null;
+  }, 1800);
 }
 
 function getDateKey(ms = nowMs()) {
@@ -470,16 +499,13 @@ function endBreak() {
   renderAll();
 }
 
-function skipBreak() {
+function applySkipBreak(selectedSequence) {
   const activeSession = getActiveSession();
   if (!activeSession) return;
 
   const dateKey = getDateKey();
   const skipped = ensureSkippedBreaksForDate(dateKey);
   const completed = getCompletedBreakSequencesForDate(new Date());
-
-  const selectedValue = els.skipBreakTarget?.value || "next";
-  const selectedSequence = selectedValue === "next" ? getNextBreakSequence(new Date()) : Number(selectedValue);
 
   if (!Number.isFinite(selectedSequence) || selectedSequence < 1 || selectedSequence > BREAK_PLAN_MINUTES.length) return;
   if (completed.has(selectedSequence)) return;
@@ -508,6 +534,67 @@ function skipBreak() {
   cleanupSkippedBreaks(dateKey);
   saveState(state);
   renderAll();
+}
+
+function resolveSkipBreakSelection() {
+  const selectedValue = els.skipBreakTarget?.value || "next";
+  return selectedValue === "next" ? getNextBreakSequence(new Date()) : Number(selectedValue);
+}
+
+function openSkipBreakModal(sequence) {
+  pendingSkipBreakSequence = sequence;
+  els.skipBreakModalBody.textContent = `You are about to skip ${getBreakPromptLabel(sequence)} for today.`;
+  els.skipBreakModal.hidden = false;
+  els.skipBreakModal.setAttribute("aria-hidden", "false");
+  els.btnConfirmSkipBreak.disabled = false;
+}
+
+function closeSkipBreakModal() {
+  pendingSkipBreakSequence = null;
+  skipBreakSubmitInFlight = false;
+  els.skipBreakModal.hidden = true;
+  els.skipBreakModal.setAttribute("aria-hidden", "true");
+  els.btnConfirmSkipBreak.disabled = false;
+}
+
+function promptSkipBreak() {
+  const activeSession = getActiveSession();
+  if (!activeSession) return;
+
+  const selectedSequence = resolveSkipBreakSelection();
+  if (!Number.isFinite(selectedSequence)) {
+    showToast("No breaks left to skip today");
+    return;
+  }
+
+  const dateKey = getDateKey();
+  const skipped = ensureSkippedBreaksForDate(dateKey);
+  if (skipped[selectedSequence - 1]) {
+    showToast(`Break ${selectedSequence} was already skipped today`);
+    return;
+  }
+
+  openSkipBreakModal(selectedSequence);
+}
+
+function confirmSkipBreak() {
+  if (skipBreakSubmitInFlight || !Number.isFinite(pendingSkipBreakSequence)) return;
+  skipBreakSubmitInFlight = true;
+  els.btnConfirmSkipBreak.disabled = true;
+
+  const selectedSequence = pendingSkipBreakSequence;
+  const dateKey = getDateKey();
+  const skipped = ensureSkippedBreaksForDate(dateKey);
+
+  if (skipped[selectedSequence - 1]) {
+    closeSkipBreakModal();
+    showToast(`Break ${selectedSequence} was already skipped today`);
+    return;
+  }
+
+  applySkipBreak(selectedSequence);
+  closeSkipBreakModal();
+  showToast(`Break ${selectedSequence} skipped`);
 }
 
 function clearCurrentSession() {
@@ -658,7 +745,15 @@ els.btnClockIn.addEventListener("click", clockIn);
 els.btnClockOut.addEventListener("click", clockOut);
 els.btnStartBreak.addEventListener("click", startBreak);
 els.btnEndBreak.addEventListener("click", endBreak);
-els.btnSkipBreak?.addEventListener("click", skipBreak);
+els.btnSkipBreak?.addEventListener("click", promptSkipBreak);
+els.btnCancelSkipBreak?.addEventListener("click", closeSkipBreakModal);
+els.btnConfirmSkipBreak?.addEventListener("click", confirmSkipBreak);
+els.skipBreakModalBackdrop?.addEventListener("click", closeSkipBreakModal);
+document.addEventListener("keydown", (evt) => {
+  if (evt.key === "Escape" && els.skipBreakModal && !els.skipBreakModal.hidden) {
+    closeSkipBreakModal();
+  }
+});
 els.btnClearSession.addEventListener("click", clearCurrentSession);
 els.btnClearLogs.addEventListener("click", clearLogs);
 els.btnShareWeek?.addEventListener("click", shareWeeklyHours);
