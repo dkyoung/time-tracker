@@ -247,6 +247,19 @@
     </footer>
   </div>
 
+  <div id="skipBreakModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="skipBreakModalTitle" aria-describedby="skipBreakModalBody" aria-hidden="true" hidden>
+    <div id="skipBreakModalBackdrop" class="modal-backdrop"></div>
+    <div class="modal-card">
+      <h3 id="skipBreakModalTitle">Skip this break?</h3>
+      <p id="skipBreakModalBody">You are about to skip Break 1 - 15m for today.</p>
+      <div class="modal-actions">
+        <button id="btnCancelSkipBreak" class="btn" type="button">Cancel</button>
+        <button id="btnConfirmSkipBreak" class="btn primary" type="button">Yes, skip break</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="appToast" class="app-toast" role="status" aria-live="polite" hidden></div>
   <script src="app.js"></script>
 </body>
 </html>
