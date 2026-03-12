@@ -1480,6 +1480,18 @@ function updateUI() {
   renderLastImport();
 }
 
+function initializeDefaultLogDateFilter() {
+  const todayDateKey = getDateKey();
+
+  if (!logFilters.date) {
+    logFilters.date = todayDateKey;
+  }
+
+  if (els.logFilterDate && !els.logFilterDate.value) {
+    els.logFilterDate.value = todayDateKey;
+  }
+}
+
 function renderAll() {
   const didCleanupSkips = cleanupSkippedBreaks(getDateKey());
   if (didCleanupSkips) saveState(state);
@@ -1508,6 +1520,7 @@ setInterval(() => {
 }, 1000);
 
 // Init
+initializeDefaultLogDateFilter();
 renderAll();
 setTab("dashboard");
 
