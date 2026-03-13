@@ -27,6 +27,9 @@ const els = {
   activeSessionText: document.getElementById("activeSessionText"),
   breakStatusText: document.getElementById("breakStatusText"),
   breakSkipSummary: document.getElementById("breakSkipSummary"),
+  breakCountdownWrap: document.getElementById("breakCountdownWrap"),
+  breakCountdownLabel: document.getElementById("breakCountdownLabel"),
+  breakCountdownValue: document.getElementById("breakCountdownValue"),
 
   todayGross: document.getElementById("todayGross"),
   todayBreaks: document.getElementById("todayBreaks"),
@@ -1303,6 +1306,34 @@ function renderBigTimer() {
   els.bigTimer.textContent = fmtHMS(elapsed);
 }
 
+function renderBreakCountdown() {
+  const active = getActiveSession();
+  const activeBreak = active ? getActiveBreak(active.id) : null;
+
+  if (!activeBreak) {
+    els.breakCountdownWrap.hidden = true;
+    els.breakCountdownLabel.textContent = "";
+    els.breakCountdownValue.textContent = "00:00:00";
+    els.breakCountdownValue.classList.remove("break-paid", "break-unpaid");
+    return;
+  }
+
+  const plannedMinutes = Number.isFinite(activeBreak.plannedMinutes)
+    ? activeBreak.plannedMinutes
+    : getPlannedBreakMinutes((activeBreak.sequence ?? 1) - 1);
+  const plannedMs = Math.max(0, (plannedMinutes ?? 0) * 60 * 1000);
+  const elapsedMs = Math.max(0, nowMs() - activeBreak.startMs);
+  const remainingMs = Math.max(0, plannedMs - elapsedMs);
+
+  els.breakCountdownWrap.hidden = false;
+  els.breakCountdownLabel.textContent = getBreakLabel(activeBreak.sequence);
+  els.breakCountdownValue.textContent = fmtHMS(remainingMs);
+
+  const paidClass = activeBreak.isPaidBreak === false ? "break-unpaid" : "break-paid";
+  els.breakCountdownValue.classList.remove("break-paid", "break-unpaid");
+  els.breakCountdownValue.classList.add(paidClass);
+}
+
 function renderTotals() {
   const now = new Date();
 
@@ -1500,6 +1531,7 @@ function renderAll() {
   renderButtons();
   renderStatus();
   renderBigTimer();
+  renderBreakCountdown();
   renderTotals();
   renderLogs();
   renderLastBackup();
@@ -1513,6 +1545,7 @@ function renderAll() {
 // Big timer should always be live, even if user stays on Logs tab.
 setInterval(() => {
   renderBigTimer();
+  renderBreakCountdown();
   renderTotals();
   // If an active session is running, the "End: Active" duration should tick in logs too.
   // This is cheap enough for small lists.
