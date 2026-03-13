@@ -1159,6 +1159,11 @@ function formatDecimalHours(minutes) {
   return decimalHours.toFixed(2).replace(/\.00$/, "").replace(/(\.\d*[1-9])0$/, "$1");
 }
 
+function formatLiveDecimalHours(ms) {
+  const decimalHours = minutesFromMs(ms) / 60;
+  return Math.max(0, decimalHours).toFixed(2);
+}
+
 // ---------------------------
 // Metrics (gross only for now)
 // ---------------------------
@@ -1299,11 +1304,13 @@ function renderStatus() {
 function renderBigTimer() {
   const active = getActiveSession();
   if (!active) {
-    els.bigTimer.textContent = "00:00:00";
+    els.bigTimer.textContent = displayMode === "decimal" ? "0.00" : "00:00:00";
     return;
   }
   const elapsed = sessionDurationMs(active);
-  els.bigTimer.textContent = fmtHMS(elapsed);
+  els.bigTimer.textContent = displayMode === "decimal"
+    ? formatLiveDecimalHours(elapsed)
+    : fmtHMS(elapsed);
 }
 
 function renderBreakCountdown() {
@@ -1313,7 +1320,7 @@ function renderBreakCountdown() {
   if (!activeBreak) {
     els.breakCountdownWrap.hidden = true;
     els.breakCountdownLabel.textContent = "";
-    els.breakCountdownValue.textContent = "00:00:00";
+    els.breakCountdownValue.textContent = displayMode === "decimal" ? "0.00" : "00:00:00";
     els.breakCountdownValue.classList.remove("break-paid", "break-unpaid");
     return;
   }
@@ -1327,7 +1334,9 @@ function renderBreakCountdown() {
 
   els.breakCountdownWrap.hidden = false;
   els.breakCountdownLabel.textContent = getBreakLabel(activeBreak.sequence);
-  els.breakCountdownValue.textContent = fmtHMS(remainingMs);
+  els.breakCountdownValue.textContent = displayMode === "decimal"
+    ? formatLiveDecimalHours(remainingMs)
+    : fmtHMS(remainingMs);
 
   const paidClass = activeBreak.isPaidBreak === false ? "break-unpaid" : "break-paid";
   els.breakCountdownValue.classList.remove("break-paid", "break-unpaid");
@@ -1505,6 +1514,8 @@ function renderLogs() {
 }
 
 function updateUI() {
+  renderBigTimer();
+  renderBreakCountdown();
   renderTotals();
   renderLogs();
   renderLastBackup();
