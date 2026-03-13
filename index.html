@@ -48,6 +48,11 @@
       <section class="hero">
         <div class="hero-left">
           <div class="timer-wrap">
+            <div class="primary-session-actions" aria-label="Primary session actions">
+              <button id="btnClockIn" class="btn primary" type="button">Clock In</button>
+              <button id="btnClockOut" class="btn" type="button">Clock Out</button>
+            </div>
+
             <div class="timer-label">Running Timer</div>
             <div id="bigTimer" class="big-timer">00:00:00</div>
             <div id="statusText" class="status-text">Not clocked in</div>
@@ -57,8 +62,6 @@
           </div>
 
           <div class="controls">
-            <button id="btnClockIn" class="btn primary" type="button">Clock In</button>
-            <button id="btnClockOut" class="btn" type="button">Clock Out</button>
             <button id="btnStartBreak" class="btn" type="button">Start Break</button>
             <button id="btnEndBreak" class="btn" type="button">End Break</button>
           </div>

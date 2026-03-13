@@ -149,10 +149,24 @@ body{
 }
 
 .timer-wrap{
-  padding: 14px;
+  padding: 16px;
   border: 1px solid var(--border);
   background: rgba(15,23,38,.55);
   border-radius: 16px;
+}
+
+.primary-session-actions{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.primary-session-actions .btn{
+  min-width: 0;
+  width: 100%;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
 .timer-label{
@@ -185,7 +199,7 @@ body{
   display:flex;
   flex-wrap: wrap;
   gap:10px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .break-skip-controls{
@@ -235,6 +249,28 @@ body{
   cursor:not-allowed;
 }
 
+
+@media (max-width: 640px){
+  .timer-wrap{
+    padding: 16px 14px;
+  }
+
+  .primary-session-actions{
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .controls .btn,
+  .break-skip-controls .btn,
+  .break-skip-controls select{
+    width: 100%;
+  }
+
+  .break-skip-controls{
+    gap: 10px;
+  }
+}
 
 .format-toggle{
   display: flex;
