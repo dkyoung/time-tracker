@@ -304,11 +304,19 @@
           Date
           <input id="logEditorDate" type="date" required />
         </label>
+        <label id="logEditorSessionTypeWrap" hidden>
+          Session type
+          <select id="logEditorSessionType">
+            <option value="break_1">First break (15m)</option>
+            <option value="break_2">Lunch break (30m)</option>
+            <option value="break_3">Last break (15m)</option>
+          </select>
+        </label>
         <label>
           Start time
           <input id="logEditorStart" type="time" required />
         </label>
-        <label>
+        <label id="logEditorEndWrap">
           End time
           <input id="logEditorEnd" type="time" required />
         </label>

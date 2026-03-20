@@ -92,7 +92,10 @@ const els = {
   logEditorForm: document.getElementById("logEditorForm"),
   logEditorType: document.getElementById("logEditorType"),
   logEditorDate: document.getElementById("logEditorDate"),
+  logEditorSessionTypeWrap: document.getElementById("logEditorSessionTypeWrap"),
+  logEditorSessionType: document.getElementById("logEditorSessionType"),
   logEditorStart: document.getElementById("logEditorStart"),
+  logEditorEndWrap: document.getElementById("logEditorEndWrap"),
   logEditorEnd: document.getElementById("logEditorEnd"),
   logEditorNotes: document.getElementById("logEditorNotes"),
   logEditorMeta: document.getElementById("logEditorMeta"),
@@ -108,7 +111,7 @@ function defaultState() {
   return {
     sessions: [], // { id, startMs, endMs|null }
     breaks: [], // { id, startMs, endMs|null, plannedMinutes, sequence }
-    auditLogs: [], // { id, kind, timestampMs, message, breakSequence, endedActiveBreak, manual }
+    auditLogs: [], // { id, kind, timestampMs, message, notes, breakSequence, endedActiveBreak, manual }
     skippedBreaksByDate: {}, // { YYYY-MM-DD: [bool,bool,bool] }
   };
 }
@@ -154,6 +157,7 @@ function loadState() {
         kind: item.kind || "audit",
         timestampMs: Number.isFinite(item.timestampMs) ? item.timestampMs : nowMs(),
         message: typeof item.message === "string" ? item.message : "",
+        notes: typeof item.notes === "string" ? item.notes : "",
         breakSequence: Number.isFinite(item.breakSequence) ? item.breakSequence : null,
         endedActiveBreak: item.endedActiveBreak === true,
         manual: item.manual === true,
@@ -492,7 +496,13 @@ function renderEditModeUI() {
 }
 
 function canEditLogItem(item) {
-  if (!item || (item.kind !== "work" && item.kind !== "break")) return false;
+  if (!item) return false;
+
+  if (item.kind === "audit") {
+    return (item.auditKind || item.kindValue || "") === "break_skip" && Number.isFinite(item.timestampMs);
+  }
+
+  if (item.kind !== "work" && item.kind !== "break") return false;
   if (!Number.isFinite(item.startMs) || !Number.isFinite(item.endMs)) return false;
   return item.endMs > item.startMs;
 }
@@ -506,12 +516,17 @@ function getLogEditorItem(logId, kind) {
     return state.breaks.find((item) => item.id === logId) || null;
   }
 
+  if (kind === "audit") {
+    return (Array.isArray(state.auditLogs) ? state.auditLogs : []).find((item) => item.id === logId) || null;
+  }
+
   return null;
 }
 
 function getLogEntryTypeLabel(item) {
   if (item.kind === "work") return "Work session";
   if (item.kind === "break") return getBreakLabel(item.sequence);
+  if (item.kind === "audit" && item.auditKind === "break_skip") return "Break skipped";
   if (item.kind === "audit") return "Audit record";
   return "Log entry";
 }
@@ -519,6 +534,7 @@ function getLogEntryTypeLabel(item) {
 function getLogEditorSnapshot() {
   return JSON.stringify({
     date: els.logEditorDate?.value || "",
+    sessionType: els.logEditorSessionType?.value || "",
     start: els.logEditorStart?.value || "",
     end: els.logEditorEnd?.value || "",
     notes: els.logEditorNotes?.value || "",
@@ -536,11 +552,31 @@ function populateLogEditor(item) {
   els.logEditorType.textContent = getLogEntryTypeLabel(item);
   els.logEditorDate.value = formatDateInputValue(item.startMs);
   els.logEditorStart.value = formatTimeInputValue(item.startMs);
-  els.logEditorEnd.value = formatTimeInputValue(item.endMs);
-  els.logEditorNotes.value = item.notes || "";
+  const isSkippedBreakAudit = item.kind === "audit" && item.auditKind === "break_skip";
+  if (els.logEditorSessionTypeWrap) {
+    els.logEditorSessionTypeWrap.hidden = !isSkippedBreakAudit;
+  }
+  if (els.logEditorSessionType) {
+    els.logEditorSessionType.value = `break_${Number.isFinite(item.breakSequence) ? item.breakSequence : 1}`;
+  }
+  if (els.logEditorEndWrap) {
+    els.logEditorEndWrap.hidden = isSkippedBreakAudit;
+  }
+  if (els.logEditorEnd) {
+    els.logEditorEnd.required = !isSkippedBreakAudit;
+    els.logEditorEnd.disabled = isSkippedBreakAudit;
+    els.logEditorEnd.value = isSkippedBreakAudit ? "" : formatTimeInputValue(item.endMs);
+  }
+  els.logEditorNotes.value = isSkippedBreakAudit ? (item.notes || "") : (item.notes || "");
   els.logEditorError.textContent = "";
 
-  if (item.kind === "break") {
+  if (isSkippedBreakAudit) {
+    const metaBits = [
+      `System note: ${item.message || "Break skipped"}`,
+      `Ended active break: ${item.endedActiveBreak === true ? "Yes" : "No"}`,
+    ];
+    els.logEditorMeta.innerHTML = `<div class="muted">${escapeHtml(metaBits.join(" • "))}</div>`;
+  } else if (item.kind === "break") {
     const metaBits = [
       `Sequence: ${Number.isFinite(item.sequence) ? item.sequence : "—"}`,
       `Planned: ${Number.isFinite(item.plannedMinutes) ? `${item.plannedMinutes}m` : "—"}`,
@@ -554,6 +590,7 @@ function populateLogEditor(item) {
   logEditorState = {
     id: item.id,
     kind: item.kind,
+    auditKind: item.auditKind || "",
     initialSnapshot: "",
   };
   logEditorState.initialSnapshot = getLogEditorSnapshot();
@@ -563,9 +600,10 @@ function openLogEditor(logId, kind) {
   if (!editModeEnabled) return;
 
   const item = getLogEditorItem(logId, kind);
-  if (!item || !canEditLogItem({ ...item, kind })) return;
+  const editorItem = { ...item, kind, auditKind: kind === "audit" ? item?.kind : "" };
+  if (!item || !canEditLogItem(editorItem)) return;
 
-  populateLogEditor({ ...item, kind });
+  populateLogEditor(editorItem);
   els.logEditorModal.hidden = false;
   els.logEditorModal.setAttribute("aria-hidden", "false");
   requestAnimationFrame(() => {
@@ -597,27 +635,46 @@ function closeLogEditor(options = {}) {
 
 function validateLogEdit(formData, originalItem) {
   const dateValue = String(formData.date || "").trim();
+  const sessionTypeValue = String(formData.sessionType || "").trim();
   const startValue = String(formData.start || "").trim();
   const endValue = String(formData.end || "").trim();
   const notes = String(formData.notes || "");
 
-  if (!dateValue || !startValue || !endValue) {
-    return { ok: false, error: "Date, start time, and end time are required." };
+  const isSkippedBreakAudit = originalItem?.kind === "audit" && originalItem?.kindValue === "break_skip";
+  if (!dateValue || !startValue || (!isSkippedBreakAudit && !endValue)) {
+    return { ok: false, error: isSkippedBreakAudit ? "Date and start time are required." : "Date, start time, and end time are required." };
   }
 
   const startMs = parseDateTimeToMs(dateValue, startValue);
-  const endMs = parseDateTimeToMs(dateValue, endValue);
+  const endMs = isSkippedBreakAudit ? startMs : parseDateTimeToMs(dateValue, endValue);
 
   if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
     return { ok: false, error: "Please enter a valid date and time." };
   }
 
-  if (endMs <= startMs) {
+  if (!isSkippedBreakAudit && endMs <= startMs) {
     return { ok: false, error: "End time must be after start time." };
   }
 
   if (!originalItem || !canEditLogItem(originalItem)) {
     return { ok: false, error: "This log entry cannot be edited safely." };
+  }
+
+  if (isSkippedBreakAudit) {
+    const meta = getManualTypeMeta(sessionTypeValue);
+    if (!meta || meta.kind !== "break") {
+      return { ok: false, error: "Please choose a valid skipped-break type." };
+    }
+
+    return {
+      ok: true,
+      updates: {
+        timestampMs: startMs,
+        breakSequence: meta.sequence,
+        notes,
+        message: `${getBreakShortLabel(meta.sequence)} skipped${originalItem.endedActiveBreak ? " and active break ended" : ""}`,
+      },
+    };
   }
 
   return {
@@ -631,7 +688,9 @@ function validateLogEdit(formData, originalItem) {
 }
 
 function updateLogEntryInState(kind, id, updates) {
-  const collection = kind === "work" ? state.sessions : state.breaks;
+  const collection = kind === "work"
+    ? state.sessions
+    : (kind === "break" ? state.breaks : state.auditLogs);
   const index = collection.findIndex((item) => item.id === id);
   if (index === -1) return null;
 
@@ -660,10 +719,15 @@ function saveLogEdit(evt) {
   const originalItem = getLogEditorItem(logEditorState.id, logEditorState.kind);
   const validation = validateLogEdit({
     date: els.logEditorDate.value,
+    sessionType: els.logEditorSessionType?.value || "",
     start: els.logEditorStart.value,
     end: els.logEditorEnd.value,
     notes: els.logEditorNotes.value,
-  }, originalItem ? { ...originalItem, kind: logEditorState.kind } : null);
+  }, originalItem ? {
+    ...originalItem,
+    kind: logEditorState.kind,
+    kindValue: logEditorState.auditKind || originalItem.kind,
+  } : null);
 
   if (!validation.ok) {
     els.logEditorError.textContent = validation.error;
@@ -1721,6 +1785,7 @@ function buildCombinedLogItems() {
     ...((Array.isArray(state.auditLogs) ? state.auditLogs : []).map((a) => ({
       ...a,
       kind: "audit",
+      auditKind: a.kind,
       startMs: a.timestampMs,
       endMs: a.timestampMs,
     }))),
@@ -1746,7 +1811,7 @@ function applyLogFilters(items, filters) {
     if (filters.notes.trim()) {
       const needle = filters.notes.trim().toLowerCase();
       const haystack = item.kind === "audit"
-        ? (item.message || "")
+        ? `${item.message || ""}\n${item.notes || ""}`
         : (item.notes || "");
       if (!haystack.toLowerCase().includes(needle)) return false;
     }
@@ -1792,7 +1857,7 @@ function renderLogs() {
       sessionType = "Break skipped";
       endStr = "—";
       durationStr = "—";
-      notesStr = s.message || "—";
+      notesStr = s.notes || s.message || "—";
     } else {
       const dur = sessionDurationMs(s);
       const durationMinutes = minutesFromMs(dur);
