@@ -451,9 +451,16 @@ function setEditMode(enabled) {
   if (!nextValue && logEditorState) {
     const closed = closeLogEditor();
     if (!closed) {
+      if (els.editModeToggle) {
+        els.editModeToggle.checked = true;
+      }
       renderEditModeUI();
       return;
     }
+  }
+
+  if (els.editModeToggle) {
+    els.editModeToggle.checked = nextValue;
   }
 
   editModeEnabled = nextValue;
@@ -463,17 +470,16 @@ function setEditMode(enabled) {
 }
 
 function renderEditModeUI() {
-  if (els.editModeToggle) {
-    els.editModeToggle.checked = editModeEnabled;
-  }
+  const isEnabled = els.editModeToggle ? els.editModeToggle.checked : editModeEnabled;
+  editModeEnabled = isEnabled;
 
   if (els.editModeState) {
-    els.editModeState.textContent = editModeEnabled ? "ON" : "OFF";
-    els.editModeState.classList.toggle("is-on", editModeEnabled);
+    els.editModeState.textContent = isEnabled ? "ON" : "OFF";
+    els.editModeState.classList.toggle("is-on", isEnabled);
   }
 
   if (els.logsEditModeBanner) {
-    els.logsEditModeBanner.hidden = !editModeEnabled;
+    els.logsEditModeBanner.hidden = !isEnabled;
   }
 }
 
@@ -676,19 +682,18 @@ function setTab(name) {
   const isLogs = name === "logs";
   const isSettings = name === "settings";
 
-  els.tabDashboard.classList.toggle("is-active", isDash);
-  els.tabLogs.classList.toggle("is-active", isLogs);
-  els.tabSettings.classList.toggle("is-active", isSettings);
+  els.tabDashboard?.classList.toggle("is-active", isDash);
+  els.tabLogs?.classList.toggle("is-active", isLogs);
+  els.tabSettings?.classList.toggle("is-active", isSettings);
 
-  els.tabDashboard.setAttribute("aria-selected", isDash ? "true" : "false");
-  els.tabLogs.setAttribute("aria-selected", isLogs ? "true" : "false");
-  els.tabSettings.setAttribute("aria-selected", isSettings ? "true" : "false");
+  els.tabDashboard?.setAttribute("aria-selected", isDash ? "true" : "false");
+  els.tabLogs?.setAttribute("aria-selected", isLogs ? "true" : "false");
+  els.tabSettings?.setAttribute("aria-selected", isSettings ? "true" : "false");
 
-  els.dashboardPanel.classList.toggle("is-active", isDash);
-  els.logsPanel.classList.toggle("is-active", isLogs);
-  els.settingsPanel.classList.toggle("is-active", isSettings);
+  els.dashboardPanel?.classList.toggle("is-active", isDash);
+  els.logsPanel?.classList.toggle("is-active", isLogs);
+  els.settingsPanel?.classList.toggle("is-active", isSettings);
 
-  // 🔥 FIX: Always sync UI when switching tabs
   renderEditModeUI();
 
   if (isLogs) {
@@ -699,7 +704,19 @@ function setTab(name) {
     renderLastBackup();
     renderLastImport();
   }
-};
+}
+
+let tabListenersAttached = false;
+
+function attachTabListeners() {
+  if (tabListenersAttached) return;
+
+  els.tabDashboard?.addEventListener("click", () => setTab("dashboard"));
+  els.tabLogs?.addEventListener("click", () => setTab("logs"));
+  els.tabSettings?.addEventListener("click", () => setTab("settings"));
+
+  tabListenersAttached = true;
+}
 
 // ---------------------------
 // Core actions
@@ -1731,8 +1748,8 @@ function applyLogFilters(items, filters) {
 }
 
 function renderLogs() {
-    renderEditModeUI();
-  
+  renderEditModeUI();
+
   const items = buildCombinedLogItems().sort((a, b) => {
     if (b.startMs !== a.startMs) return b.startMs - a.startMs;
     const aEnd = a.endMs == null ? Number.MAX_SAFE_INTEGER : a.endMs;
@@ -1869,9 +1886,22 @@ setInterval(() => {
 }, 1000);
 
 // Init
-initializeDefaultLogDateFilter();
-renderAll();
-setTab("dashboard");
+function initializeApp() {
+  if (els.editModeToggle) {
+    els.editModeToggle.checked = editModeEnabled;
+  }
+
+  attachTabListeners();
+  initializeDefaultLogDateFilter();
+  renderAll();
+  setTab("dashboard");
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeApp, { once: true });
+} else {
+  initializeApp();
+}
 
 let refreshingApp = false;
 let pendingServiceWorker = null;
