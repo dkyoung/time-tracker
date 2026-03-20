@@ -173,7 +173,8 @@ function saveState(s) {
 
 function loadEditMode() {
   try {
-    return localStorage.getItem(EDIT_MODE_KEY) === "1";
+    const storedValue = localStorage.getItem(EDIT_MODE_KEY);
+    return storedValue === "1" || storedValue === "true";
   } catch {
     return false;
   }
@@ -181,6 +182,10 @@ function loadEditMode() {
 
 function saveEditMode(enabled) {
   localStorage.setItem(EDIT_MODE_KEY, enabled ? "1" : "0");
+}
+
+function getEditModeEnabled() {
+  return editModeEnabled === true;
 }
 
 let state = loadState();
@@ -470,8 +475,11 @@ function setEditMode(enabled) {
 }
 
 function renderEditModeUI() {
-  const isEnabled = els.editModeToggle ? els.editModeToggle.checked : editModeEnabled;
-  editModeEnabled = isEnabled;
+  const isEnabled = getEditModeEnabled();
+
+  if (els.editModeToggle) {
+    els.editModeToggle.checked = isEnabled;
+  }
 
   if (els.editModeState) {
     els.editModeState.textContent = isEnabled ? "ON" : "OFF";

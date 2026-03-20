@@ -456,6 +456,10 @@ body{
   box-shadow: var(--shadow);
 }
 
+.logs-edit-banner[hidden]{
+  display:none !important;
+}
+
 .logs-edit-banner strong{
   font-size: 13px;
   letter-spacing: .2px;
