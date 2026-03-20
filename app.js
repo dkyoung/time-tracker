@@ -4,7 +4,15 @@ const STORAGE_KEY = "tt_v1";
 const LAST_BACKUP_KEY = "tt_last_backup_ts";
 const LAST_IMPORT_KEY = "tt_last_import_ts";
 const EDIT_MODE_KEY = "tt_edit_mode";
+const BACKUP_MODE_KEY = "tt_backup_mode";
+const LAST_AUTO_BACKUP_KEY = "tt_last_auto_backup_ts";
+const BACKUP_FILE_NAME_KEY = "tt_backup_file_name";
+const BACKUP_FILE_HANDLE_KEY = "tt_backup_file_handle";
+const BACKUP_CAPABILITY_STATE_KEY = "tt_backup_capability_state";
 const BREAK_PLAN_MINUTES = [15, 30, 15];
+const BACKUP_MODE_LOCAL_ONLY = "local_only";
+const BACKUP_MODE_AUTO_FILE = "auto_file";
+const AUTO_BACKUP_DEBOUNCE_MS = 750;
 
 const els = {
   // header
@@ -85,6 +93,13 @@ const els = {
   importBackupInput: document.getElementById("importBackupInput"),
   lastBackupLabel: document.getElementById("lastBackupLabel"),
   lastImportLabel: document.getElementById("lastImportLabel"),
+  backupModeSelect: document.getElementById("backupModeSelect"),
+  backupDestinationLabel: document.getElementById("backupDestinationLabel"),
+  btnChooseBackupFile: document.getElementById("btnChooseBackupFile"),
+  btnRunBackupNow: document.getElementById("btnRunBackupNow"),
+  btnResetBackupStorage: document.getElementById("btnResetBackupStorage"),
+  lastAutoBackupLabel: document.getElementById("lastAutoBackupLabel"),
+  autoBackupStatusLabel: document.getElementById("autoBackupStatusLabel"),
   editModeToggle: document.getElementById("editModeToggle"),
   editModeState: document.getElementById("editModeState"),
   logEditorModal: document.getElementById("logEditorModal"),
@@ -200,6 +215,37 @@ let pendingSkipBreakSequence = null;
 let skipBreakSubmitInFlight = false;
 let toastTimeoutId = null;
 let logEditorState = null;
+let autoBackupTimeoutId = null;
+let backupFileHandle = null;
+
+function loadBackupMode() {
+  const stored = localStorage.getItem(BACKUP_MODE_KEY);
+  return stored === BACKUP_MODE_AUTO_FILE ? BACKUP_MODE_AUTO_FILE : BACKUP_MODE_LOCAL_ONLY;
+}
+
+function loadBackupFileName() {
+  return localStorage.getItem(BACKUP_FILE_NAME_KEY) || "";
+}
+
+function supportsAutomaticBackup() {
+  return typeof window !== "undefined" && typeof window.showSaveFilePicker === "function";
+}
+
+function getDefaultBackupCapabilityState() {
+  if (!supportsAutomaticBackup()) return "unsupported";
+  if (loadBackupFileName()) return "permission_needed";
+  return "ready";
+}
+
+function loadBackupCapabilityState() {
+  const stored = localStorage.getItem(BACKUP_CAPABILITY_STATE_KEY);
+  if (stored) return stored;
+  return getDefaultBackupCapabilityState();
+}
+
+let backupMode = loadBackupMode();
+let backupFileName = loadBackupFileName();
+let backupCapabilityState = loadBackupCapabilityState();
 
 // ---------------------------
 // Utilities
@@ -386,6 +432,167 @@ function showToast(message) {
 function getDateKey(ms = nowMs()) {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function buildBackupPayload() {
+  return {
+    meta: {
+      app: "Time Tracker",
+      exportedAt: new Date().toISOString(),
+      storageKey: STORAGE_KEY,
+      version: 1,
+    },
+    data: JSON.parse(JSON.stringify(state)),
+  };
+}
+
+function setBackupCapabilityState(nextState) {
+  backupCapabilityState = nextState;
+  localStorage.setItem(BACKUP_CAPABILITY_STATE_KEY, nextState);
+  renderAutomaticBackupSettings();
+}
+
+function setBackupMode(nextMode) {
+  backupMode = nextMode === BACKUP_MODE_AUTO_FILE ? BACKUP_MODE_AUTO_FILE : BACKUP_MODE_LOCAL_ONLY;
+  localStorage.setItem(BACKUP_MODE_KEY, backupMode);
+  renderAutomaticBackupSettings();
+}
+
+function setBackupFileName(nextName) {
+  backupFileName = nextName || "";
+  if (backupFileName) {
+    localStorage.setItem(BACKUP_FILE_NAME_KEY, backupFileName);
+  } else {
+    localStorage.removeItem(BACKUP_FILE_NAME_KEY);
+  }
+
+  // File handles are not safely serializable into localStorage.
+  localStorage.removeItem(BACKUP_FILE_HANDLE_KEY);
+  renderAutomaticBackupSettings();
+}
+
+function canUseAutomaticBackup() {
+  return supportsAutomaticBackup() && backupMode === BACKUP_MODE_AUTO_FILE && !!backupFileHandle;
+}
+
+async function ensureBackupWritePermission(fileHandle) {
+  if (!fileHandle) return false;
+
+  if (typeof fileHandle.queryPermission === "function") {
+    const current = await fileHandle.queryPermission({ mode: "readwrite" });
+    if (current === "granted") return true;
+  }
+
+  if (typeof fileHandle.requestPermission === "function") {
+    const requested = await fileHandle.requestPermission({ mode: "readwrite" });
+    return requested === "granted";
+  }
+
+  return true;
+}
+
+function scheduleAutomaticBackup() {
+  if (autoBackupTimeoutId) {
+    clearTimeout(autoBackupTimeoutId);
+  }
+
+  if (backupMode !== BACKUP_MODE_AUTO_FILE) return;
+
+  autoBackupTimeoutId = setTimeout(() => {
+    autoBackupTimeoutId = null;
+    runAutomaticBackup().catch((error) => {
+      console.error("Automatic backup failed:", error);
+    });
+  }, AUTO_BACKUP_DEBOUNCE_MS);
+}
+
+async function runAutomaticBackup({ manualTrigger = false } = {}) {
+  if (!supportsAutomaticBackup()) {
+    setBackupCapabilityState("unsupported");
+    if (manualTrigger) showToast("Automatic backup is unavailable on this browser.");
+    return { ok: false, error: "unsupported" };
+  }
+
+  if (!backupFileHandle) {
+    setBackupCapabilityState("permission_needed");
+    if (manualTrigger) showToast("Choose a backup file to enable automatic backups.");
+    return { ok: false, error: "missing_handle" };
+  }
+
+  try {
+    const hasPermission = await ensureBackupWritePermission(backupFileHandle);
+    if (!hasPermission) {
+      setBackupCapabilityState("permission_needed");
+      if (manualTrigger) showToast("Backup file permission is needed.");
+      return { ok: false, error: "permission_denied" };
+    }
+
+    const writable = await backupFileHandle.createWritable();
+    await writable.write(JSON.stringify(buildBackupPayload(), null, 2));
+    await writable.close();
+
+    const timestamp = String(Date.now());
+    localStorage.setItem(LAST_AUTO_BACKUP_KEY, timestamp);
+    setBackupFileName(backupFileHandle.name || backupFileName);
+    setBackupCapabilityState("ready");
+    renderLastAutomaticBackup();
+
+    if (manualTrigger) showToast("Backup written successfully.");
+    return { ok: true };
+  } catch (error) {
+    console.error("Automatic backup failed:", error);
+    const needsPermission = error && (error.name === "NotAllowedError" || error.name === "SecurityError" || error.name === "InvalidStateError");
+    setBackupCapabilityState(needsPermission ? "permission_needed" : "error");
+    if (manualTrigger) {
+      showToast(needsPermission ? "Backup file permission is needed." : "Automatic backup failed.");
+    }
+    return { ok: false, error: error?.message || "write_failed" };
+  }
+}
+
+async function chooseBackupFile() {
+  if (!supportsAutomaticBackup()) {
+    setBackupCapabilityState("unsupported");
+    showToast("Automatic backup is unavailable on this browser.");
+    return;
+  }
+
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: backupFileName || buildBackupFilename(new Date()),
+      types: [{
+        description: "Time Tracker Backup",
+        accept: { "application/json": [".json"] },
+      }],
+    });
+
+    if (!handle) return;
+
+    backupFileHandle = handle;
+    setBackupFileName(handle.name || "");
+    setBackupCapabilityState("ready");
+    renderAutomaticBackupSettings();
+    showToast("Backup destination selected.");
+  } catch (error) {
+    if (error && error.name === "AbortError") return;
+    console.error("Unable to choose backup file:", error);
+    setBackupCapabilityState("error");
+    showToast("Unable to choose a backup file.");
+  }
+}
+
+function resetBackupPreferences() {
+  if (autoBackupTimeoutId) {
+    clearTimeout(autoBackupTimeoutId);
+    autoBackupTimeoutId = null;
+  }
+
+  backupFileHandle = null;
+  setBackupMode(BACKUP_MODE_LOCAL_ONLY);
+  setBackupFileName("");
+  localStorage.removeItem(LAST_AUTO_BACKUP_KEY);
+  setBackupCapabilityState(supportsAutomaticBackup() ? "ready" : "unsupported");
+  renderLastAutomaticBackup();
 }
 
 function ensureSkippedBreaksForDate(dateKey = getDateKey()) {
@@ -704,6 +911,7 @@ function updateLogEntryInState(kind, id, updates) {
 
 function rerenderAfterLogEdit(logId) {
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
 
   requestAnimationFrame(() => {
@@ -773,6 +981,8 @@ function setTab(name) {
   }
 
   if (isSettings) {
+    renderAutomaticBackupSettings();
+    renderLastAutomaticBackup();
     renderLastBackup();
     renderLastImport();
   }
@@ -807,6 +1017,7 @@ function clockIn() {
   });
 
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
 }
 
@@ -821,6 +1032,7 @@ function clockOut() {
 
   active.endMs = nowMs();
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
 }
 
@@ -852,6 +1064,7 @@ function startBreak() {
   });
 
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
 }
 
@@ -864,6 +1077,7 @@ function endBreak() {
 
   activeBreak.endMs = nowMs();
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
 }
 
@@ -901,6 +1115,7 @@ function applySkipBreak(selectedSequence) {
 
   cleanupSkippedBreaks(dateKey);
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
 }
 
@@ -979,6 +1194,7 @@ function clearCurrentSession() {
   });
 
   saveState(state);
+  scheduleAutomaticBackup();
   closeLogEditor({ force: true });
   renderAll();
 }
@@ -988,6 +1204,7 @@ function clearLogs() {
   state.breaks = [];
   state.auditLogs = [];
   saveState(state);
+  scheduleAutomaticBackup();
   closeLogEditor({ force: true });
   renderAll();
 }
@@ -1102,6 +1319,7 @@ function saveManualLog(evt) {
   }
 
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
   closeManualForm();
 
@@ -1148,6 +1366,36 @@ els.btnImportBackup?.addEventListener("click", () => {
   els.importBackupInput?.click();
 });
 els.importBackupInput?.addEventListener("change", importBackupFromFile);
+els.backupModeSelect?.addEventListener("change", (evt) => {
+  const target = evt.target;
+  if (!(target instanceof HTMLSelectElement)) return;
+
+  if (target.value === BACKUP_MODE_AUTO_FILE && !supportsAutomaticBackup()) {
+    target.value = BACKUP_MODE_LOCAL_ONLY;
+    setBackupMode(BACKUP_MODE_LOCAL_ONLY);
+    setBackupCapabilityState("unsupported");
+    showToast("Automatic backup is unavailable on this browser.");
+    return;
+  }
+
+  setBackupMode(target.value);
+
+  if (backupMode === BACKUP_MODE_AUTO_FILE) {
+    setBackupCapabilityState(backupFileHandle ? "ready" : "permission_needed");
+  } else {
+    setBackupCapabilityState(supportsAutomaticBackup() ? "ready" : "unsupported");
+  }
+});
+els.btnChooseBackupFile?.addEventListener("click", () => {
+  chooseBackupFile();
+});
+els.btnRunBackupNow?.addEventListener("click", () => {
+  runAutomaticBackup({ manualTrigger: true });
+});
+els.btnResetBackupStorage?.addEventListener("click", () => {
+  resetBackupPreferences();
+  showToast("Automatic backup reset to default local storage.");
+});
 els.editModeToggle?.addEventListener("change", (evt) => {
   const target = evt.target;
   if (!(target instanceof HTMLInputElement)) return;
@@ -1213,6 +1461,7 @@ els.log?.addEventListener("click", (evt) => {
   if (state.sessions.length === beforeSessions && state.breaks.length === beforeBreaks) return;
 
   saveState(state);
+  scheduleAutomaticBackup();
   renderAll();
 });
 
@@ -1268,6 +1517,62 @@ function renderLastImport() {
   els.lastImportLabel.textContent = formatted;
 }
 
+function renderLastAutomaticBackup() {
+  if (!els.lastAutoBackupLabel) return;
+
+  const raw = localStorage.getItem(LAST_AUTO_BACKUP_KEY);
+  if (!raw) {
+    els.lastAutoBackupLabel.textContent = "Never";
+    return;
+  }
+
+  const timestamp = Number(raw);
+  if (!Number.isFinite(timestamp)) {
+    els.lastAutoBackupLabel.textContent = "Never";
+    return;
+  }
+
+  els.lastAutoBackupLabel.textContent = new Date(timestamp).toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getAutoBackupStatusLabel() {
+  if (!supportsAutomaticBackup()) return "Unavailable on this browser";
+  if (backupCapabilityState === "error") return "Error";
+  if (backupCapabilityState === "permission_needed") return "File permission needed";
+  return "Ready";
+}
+
+function renderAutomaticBackupSettings() {
+  if (els.backupModeSelect) {
+    els.backupModeSelect.value = backupMode;
+    const autoOption = Array.from(els.backupModeSelect.options).find((option) => option.value === BACKUP_MODE_AUTO_FILE);
+    if (autoOption) autoOption.disabled = !supportsAutomaticBackup();
+  }
+
+  if (els.backupDestinationLabel) {
+    els.backupDestinationLabel.textContent = backupFileName || "No backup file selected";
+  }
+
+  if (els.autoBackupStatusLabel) {
+    els.autoBackupStatusLabel.textContent = getAutoBackupStatusLabel();
+  }
+
+  if (els.btnChooseBackupFile) {
+    els.btnChooseBackupFile.disabled = !supportsAutomaticBackup();
+  }
+
+  if (els.btnRunBackupNow) {
+    els.btnRunBackupNow.disabled = !supportsAutomaticBackup() || (!backupFileHandle && !canUseAutomaticBackup());
+  }
+}
+
 function buildBackupFilename(date = new Date()) {
   const year = date.getFullYear();
   const month = pad2(date.getMonth() + 1);
@@ -1278,26 +1583,7 @@ function buildBackupFilename(date = new Date()) {
 }
 
 function exportBackup() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  let data = {};
-
-  if (raw) {
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = { _rawStorageValue: raw };
-    }
-  }
-
-  const payload = {
-    meta: {
-      app: "Time Tracker",
-      exportedAt: new Date().toISOString(),
-      storageKey: STORAGE_KEY,
-      version: 1,
-    },
-    data,
-  };
+  const payload = buildBackupPayload();
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -1401,6 +1687,7 @@ function importBackupFromFile(evt) {
       localStorage.setItem(LAST_IMPORT_KEY, String(Date.now()));
       state = loadState();
       closeLogEditor({ force: true });
+      scheduleAutomaticBackup();
       renderAll();
       renderLastImport();
     } catch {
@@ -1912,6 +2199,8 @@ function updateUI() {
   renderTotals();
   renderEditModeUI();
   renderLogs();
+  renderAutomaticBackupSettings();
+  renderLastAutomaticBackup();
   renderLastBackup();
   renderLastImport();
 }
@@ -1940,6 +2229,8 @@ function renderAll() {
   renderTotals();
   renderEditModeUI();
   renderLogs();
+  renderAutomaticBackupSettings();
+  renderLastAutomaticBackup();
   renderLastBackup();
   renderLastImport();
 
@@ -1960,6 +2251,13 @@ setInterval(() => {
 
 // Init
 function initializeApp() {
+  if (backupMode === BACKUP_MODE_AUTO_FILE && !backupFileHandle) {
+    backupCapabilityState = supportsAutomaticBackup() ? "permission_needed" : "unsupported";
+  } else if (backupMode === BACKUP_MODE_LOCAL_ONLY) {
+    backupCapabilityState = supportsAutomaticBackup() ? "ready" : "unsupported";
+  }
+  localStorage.setItem(BACKUP_CAPABILITY_STATE_KEY, backupCapabilityState);
+
   if (els.editModeToggle) {
     els.editModeToggle.checked = editModeEnabled;
   }
