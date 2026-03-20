@@ -687,15 +687,19 @@ function setTab(name) {
   els.dashboardPanel.classList.toggle("is-active", isDash);
   els.logsPanel.classList.toggle("is-active", isLogs);
   els.settingsPanel.classList.toggle("is-active", isSettings);
-}
 
-els.tabDashboard.addEventListener("click", () => setTab("dashboard"));
-els.tabLogs.addEventListener("click", () => setTab("logs"));
-els.tabSettings.addEventListener("click", () => {
-  setTab("settings");
-  renderLastBackup();
-  renderLastImport();
-});
+  // 🔥 FIX: Always sync UI when switching tabs
+  renderEditModeUI();
+
+  if (isLogs) {
+    renderLogs();
+  }
+
+  if (isSettings) {
+    renderLastBackup();
+    renderLastImport();
+  }
+};
 
 // ---------------------------
 // Core actions
@@ -1727,6 +1731,8 @@ function applyLogFilters(items, filters) {
 }
 
 function renderLogs() {
+    renderEditModeUI();
+  
   const items = buildCombinedLogItems().sort((a, b) => {
     if (b.startMs !== a.startMs) return b.startMs - a.startMs;
     const aEnd = a.endMs == null ? Number.MAX_SAFE_INTEGER : a.endMs;
