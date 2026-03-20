@@ -92,3 +92,47 @@ After any change:
 * No console errors
 * No duplicate event listeners
 * App works a
+## Auto-Tests Mindset Rules
+
+Before making any code change, act as if this project has strict automated tests.
+
+### Always verify these behaviors mentally before finalizing changes
+
+#### Tab Navigation
+- Clicking Dashboard opens the dashboard panel
+- Clicking Logs opens the logs panel
+- Clicking Settings opens the settings panel
+- Active tab styling and aria-selected update correctly
+
+#### Edit Mode
+- Edit Mode OFF hides the Logs banner
+- Edit Mode ON shows the Logs banner
+- Toggle state remains correct after refresh
+- Toggle state remains correct after switching tabs
+
+#### Logs Rendering
+- Logs still render without errors
+- Filters still work
+- Manual log actions still work
+- Edit and delete controls only appear when expected
+
+#### App Stability
+- No duplicate event listeners
+- No duplicate render calls unless intentional
+- No broken DOM references
+- No syntax errors
+- No changes to unrelated behaviors
+
+### Change safety rule
+For every requested fix, assume there is a hidden regression test that will fail if:
+- an existing feature breaks
+- a listener disappears
+- a state key changes
+- a DOM ID changes
+- render order changes unexpectedly
+
+### Output rule
+When making edits:
+- prefer minimal diffs
+- explain what risk was avoided
+- list what behaviors were preserved
