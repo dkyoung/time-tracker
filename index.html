@@ -132,6 +132,11 @@
         </div>
       </section>
 
+      <section id="logsEditModeBanner" class="logs-edit-banner" hidden>
+        <strong>Edit Mode Active</strong>
+        <span>Log entries can be corrected from this screen while Edit Mode stays enabled.</span>
+      </section>
+
       <section id="manualLogFormWrap" class="manual-form-wrap" hidden>
         <h3 class="h3">Manual Entry</h3>
         <form id="manualLogForm" class="manual-form">
@@ -158,7 +163,7 @@
           </label>
           <label class="manual-notes">
             Notes (optional)
-            <input id="manualNotes" type="text" maxlength="200" placeholder="Add context" />
+            <input id="manualNotes" type="text" maxlength="500" placeholder="Add context" />
           </label>
           <div class="manual-meta">
             <div>Duration: <strong id="manualDuration">00:00:00</strong></div>
@@ -246,6 +251,23 @@
           <div class="muted">Last backup: <span id="lastBackupLabel">Never</span></div>
           <div class="muted">Last Imported from Backup: <span id="lastImportLabel">Never</span></div>
         </section>
+
+        <hr class="settings-separator" />
+
+        <section class="settings-section" aria-label="Log editing settings">
+          <h3 class="h3">Log Editing</h3>
+          <div class="muted">
+            When enabled, log entries in the Logs tab can be edited for corrections and notes.
+          </div>
+          <div class="settings-toggle-row">
+            <label class="switch" for="editModeToggle">
+              <input id="editModeToggle" type="checkbox" role="switch" aria-describedby="editModeState" />
+              <span class="switch-track" aria-hidden="true"></span>
+              <span>Enable Edit Mode</span>
+            </label>
+            <span id="editModeState" class="settings-state-pill">OFF</span>
+          </div>
+        </section>
       </section>
     </main>
 
@@ -264,6 +286,43 @@
         <button id="btnCancelSkipBreak" class="btn" type="button">Cancel</button>
         <button id="btnConfirmSkipBreak" class="btn primary" type="button">Yes, skip break</button>
       </div>
+    </div>
+  </div>
+
+  <div id="logEditorModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="logEditorTitle" aria-describedby="logEditorType" aria-hidden="true" hidden>
+    <div id="logEditorBackdrop" class="modal-backdrop"></div>
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div>
+          <h3 id="logEditorTitle">Edit Log Entry</h3>
+          <p id="logEditorType" class="modal-subtitle">—</p>
+        </div>
+        <button id="btnCloseLogEditor" class="modal-close-btn" type="button" aria-label="Close edit log entry modal">✕</button>
+      </div>
+      <form id="logEditorForm" class="manual-form modal-form">
+        <label>
+          Date
+          <input id="logEditorDate" type="date" required />
+        </label>
+        <label>
+          Start time
+          <input id="logEditorStart" type="time" required />
+        </label>
+        <label>
+          End time
+          <input id="logEditorEnd" type="time" required />
+        </label>
+        <label class="manual-notes">
+          Notes
+          <textarea id="logEditorNotes" rows="5" maxlength="1000" placeholder="Add notes or correction details"></textarea>
+        </label>
+        <div id="logEditorMeta" class="manual-meta modal-meta"></div>
+        <div id="logEditorError" class="error" role="alert" aria-live="assertive"></div>
+        <div class="manual-actions modal-actions-inline">
+          <button id="btnSaveLogEdit" class="btn primary" type="submit">Save</button>
+          <button id="btnCancelLogEdit" class="btn" type="button">Cancel</button>
+        </div>
+      </form>
     </div>
   </div>
 

@@ -1,8 +1,9 @@
 "use strict";
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 const STORAGE_KEY = "tt_v1";
 const LAST_BACKUP_KEY = "tt_last_backup_ts";
 const LAST_IMPORT_KEY = "tt_last_import_ts";
+const EDIT_MODE_KEY = "tt_edit_mode";
 const BREAK_PLAN_MINUTES = [15, 30, 15];
 
 const els = {
@@ -44,6 +45,7 @@ const els = {
   logFilterDate: document.getElementById("logFilterDate"),
   logFilterNotes: document.getElementById("logFilterNotes"),
   btnClearLogFilters: document.getElementById("btnClearLogFilters"),
+  logsEditModeBanner: document.getElementById("logsEditModeBanner"),
 
   // controls
   btnClockIn: document.getElementById("btnClockIn"),
@@ -83,6 +85,20 @@ const els = {
   importBackupInput: document.getElementById("importBackupInput"),
   lastBackupLabel: document.getElementById("lastBackupLabel"),
   lastImportLabel: document.getElementById("lastImportLabel"),
+  editModeToggle: document.getElementById("editModeToggle"),
+  editModeState: document.getElementById("editModeState"),
+  logEditorModal: document.getElementById("logEditorModal"),
+  logEditorBackdrop: document.getElementById("logEditorBackdrop"),
+  logEditorForm: document.getElementById("logEditorForm"),
+  logEditorType: document.getElementById("logEditorType"),
+  logEditorDate: document.getElementById("logEditorDate"),
+  logEditorStart: document.getElementById("logEditorStart"),
+  logEditorEnd: document.getElementById("logEditorEnd"),
+  logEditorNotes: document.getElementById("logEditorNotes"),
+  logEditorMeta: document.getElementById("logEditorMeta"),
+  logEditorError: document.getElementById("logEditorError"),
+  btnCloseLogEditor: document.getElementById("btnCloseLogEditor"),
+  btnCancelLogEdit: document.getElementById("btnCancelLogEdit"),
 };
 
 // ---------------------------
@@ -155,12 +171,26 @@ function saveState(s) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
 
+function loadEditMode() {
+  try {
+    return localStorage.getItem(EDIT_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveEditMode(enabled) {
+  localStorage.setItem(EDIT_MODE_KEY, enabled ? "1" : "0");
+}
+
 let state = loadState();
 let displayMode = "time"; // "time" or "decimal"
+let editModeEnabled = loadEditMode();
 const logFilters = { type: "all", source: "all", date: "", notes: "" };
 let pendingSkipBreakSequence = null;
 let skipBreakSubmitInFlight = false;
 let toastTimeoutId = null;
+let logEditorState = null;
 
 // ---------------------------
 // Utilities
@@ -260,6 +290,25 @@ function fmtLogStamp(ms) {
   });
   const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return `${dateStr} ${timeStr}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatDateInputValue(ms) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function formatTimeInputValue(ms) {
+  const d = new Date(ms);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 function expectedMinutesForType(type) {
@@ -394,6 +443,229 @@ function clampToRange(msStart, msEnd, rangeStart, rangeEnd) {
 function sessionDurationMs(session) {
   const end = session.endMs == null ? nowMs() : session.endMs;
   return Math.max(0, end - session.startMs);
+}
+
+function setEditMode(enabled) {
+  const nextValue = enabled === true;
+
+  if (!nextValue && logEditorState) {
+    const closed = closeLogEditor();
+    if (!closed) {
+      renderEditModeUI();
+      return;
+    }
+  }
+
+  editModeEnabled = nextValue;
+  saveEditMode(editModeEnabled);
+  renderEditModeUI();
+  renderLogs();
+}
+
+function renderEditModeUI() {
+  if (els.editModeToggle) {
+    els.editModeToggle.checked = editModeEnabled;
+  }
+
+  if (els.editModeState) {
+    els.editModeState.textContent = editModeEnabled ? "ON" : "OFF";
+    els.editModeState.classList.toggle("is-on", editModeEnabled);
+  }
+
+  if (els.logsEditModeBanner) {
+    els.logsEditModeBanner.hidden = !editModeEnabled;
+  }
+}
+
+function canEditLogItem(item) {
+  if (!item || (item.kind !== "work" && item.kind !== "break")) return false;
+  if (!Number.isFinite(item.startMs) || !Number.isFinite(item.endMs)) return false;
+  return item.endMs > item.startMs;
+}
+
+function getLogEditorItem(logId, kind) {
+  if (kind === "work") {
+    return state.sessions.find((item) => item.id === logId) || null;
+  }
+
+  if (kind === "break") {
+    return state.breaks.find((item) => item.id === logId) || null;
+  }
+
+  return null;
+}
+
+function getLogEntryTypeLabel(item) {
+  if (item.kind === "work") return "Work session";
+  if (item.kind === "break") return getBreakLabel(item.sequence);
+  if (item.kind === "audit") return "Audit record";
+  return "Log entry";
+}
+
+function getLogEditorSnapshot() {
+  return JSON.stringify({
+    date: els.logEditorDate?.value || "",
+    start: els.logEditorStart?.value || "",
+    end: els.logEditorEnd?.value || "",
+    notes: els.logEditorNotes?.value || "",
+  });
+}
+
+function isLogEditorDirty() {
+  if (!logEditorState) return false;
+  return getLogEditorSnapshot() !== logEditorState.initialSnapshot;
+}
+
+function populateLogEditor(item) {
+  if (!item) return;
+
+  els.logEditorType.textContent = getLogEntryTypeLabel(item);
+  els.logEditorDate.value = formatDateInputValue(item.startMs);
+  els.logEditorStart.value = formatTimeInputValue(item.startMs);
+  els.logEditorEnd.value = formatTimeInputValue(item.endMs);
+  els.logEditorNotes.value = item.notes || "";
+  els.logEditorError.textContent = "";
+
+  if (item.kind === "break") {
+    const metaBits = [
+      `Sequence: ${Number.isFinite(item.sequence) ? item.sequence : "—"}`,
+      `Planned: ${Number.isFinite(item.plannedMinutes) ? `${item.plannedMinutes}m` : "—"}`,
+      `Paid: ${item.isPaidBreak === false ? "No" : "Yes"}`,
+    ];
+    els.logEditorMeta.innerHTML = `<div class="muted">${metaBits.join(" • ")}</div>`;
+  } else {
+    els.logEditorMeta.innerHTML = `<div class="muted">Entry type: ${escapeHtml(getLogEntryTypeLabel(item))}</div>`;
+  }
+
+  logEditorState = {
+    id: item.id,
+    kind: item.kind,
+    initialSnapshot: "",
+  };
+  logEditorState.initialSnapshot = getLogEditorSnapshot();
+}
+
+function openLogEditor(logId, kind) {
+  if (!editModeEnabled) return;
+
+  const item = getLogEditorItem(logId, kind);
+  if (!item || !canEditLogItem({ ...item, kind })) return;
+
+  populateLogEditor({ ...item, kind });
+  els.logEditorModal.hidden = false;
+  els.logEditorModal.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => {
+    els.logEditorDate?.focus();
+  });
+}
+
+function closeLogEditor(options = {}) {
+  const { force = false } = options;
+
+  if (!els.logEditorModal || els.logEditorModal.hidden) {
+    logEditorState = null;
+    return true;
+  }
+
+  if (!force && isLogEditorDirty()) {
+    const shouldDiscard = window.confirm("Discard your unsaved log edits?");
+    if (!shouldDiscard) return false;
+  }
+
+  els.logEditorModal.hidden = true;
+  els.logEditorModal.setAttribute("aria-hidden", "true");
+  els.logEditorError.textContent = "";
+  els.logEditorForm?.reset();
+  if (els.logEditorMeta) els.logEditorMeta.innerHTML = "";
+  logEditorState = null;
+  return true;
+}
+
+function validateLogEdit(formData, originalItem) {
+  const dateValue = String(formData.date || "").trim();
+  const startValue = String(formData.start || "").trim();
+  const endValue = String(formData.end || "").trim();
+  const notes = String(formData.notes || "");
+
+  if (!dateValue || !startValue || !endValue) {
+    return { ok: false, error: "Date, start time, and end time are required." };
+  }
+
+  const startMs = parseDateTimeToMs(dateValue, startValue);
+  const endMs = parseDateTimeToMs(dateValue, endValue);
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    return { ok: false, error: "Please enter a valid date and time." };
+  }
+
+  if (endMs <= startMs) {
+    return { ok: false, error: "End time must be after start time." };
+  }
+
+  if (!originalItem || !canEditLogItem(originalItem)) {
+    return { ok: false, error: "This log entry cannot be edited safely." };
+  }
+
+  return {
+    ok: true,
+    updates: {
+      startMs,
+      endMs,
+      notes,
+    },
+  };
+}
+
+function updateLogEntryInState(kind, id, updates) {
+  const collection = kind === "work" ? state.sessions : state.breaks;
+  const index = collection.findIndex((item) => item.id === id);
+  if (index === -1) return null;
+
+  collection[index] = {
+    ...collection[index],
+    ...updates,
+  };
+
+  return collection[index];
+}
+
+function rerenderAfterLogEdit(logId) {
+  saveState(state);
+  renderAll();
+
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-log-id="${CSS.escape(logId)}"]`);
+    row?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+}
+
+function saveLogEdit(evt) {
+  evt.preventDefault();
+  if (!logEditorState) return;
+
+  const originalItem = getLogEditorItem(logEditorState.id, logEditorState.kind);
+  const validation = validateLogEdit({
+    date: els.logEditorDate.value,
+    start: els.logEditorStart.value,
+    end: els.logEditorEnd.value,
+    notes: els.logEditorNotes.value,
+  }, originalItem ? { ...originalItem, kind: logEditorState.kind } : null);
+
+  if (!validation.ok) {
+    els.logEditorError.textContent = validation.error;
+    return;
+  }
+
+  const updated = updateLogEntryInState(logEditorState.kind, logEditorState.id, validation.updates);
+  if (!updated) {
+    els.logEditorError.textContent = "Unable to save this log entry.";
+    return;
+  }
+
+  const editedId = logEditorState.id;
+  closeLogEditor({ force: true });
+  rerenderAfterLogEdit(editedId);
+  showToast("Log entry updated.");
 }
 
 // ---------------------------
@@ -614,6 +886,7 @@ function clearCurrentSession() {
   });
 
   saveState(state);
+  closeLogEditor({ force: true });
   renderAll();
 }
 
@@ -622,6 +895,7 @@ function clearLogs() {
   state.breaks = [];
   state.auditLogs = [];
   saveState(state);
+  closeLogEditor({ force: true });
   renderAll();
 }
 
@@ -755,6 +1029,11 @@ els.skipBreakModalBackdrop?.addEventListener("click", closeSkipBreakModal);
 document.addEventListener("keydown", (evt) => {
   if (evt.key === "Escape" && els.skipBreakModal && !els.skipBreakModal.hidden) {
     closeSkipBreakModal();
+    return;
+  }
+
+  if (evt.key === "Escape" && els.logEditorModal && !els.logEditorModal.hidden) {
+    closeLogEditor();
   }
 });
 els.btnClearSession.addEventListener("click", clearCurrentSession);
@@ -776,9 +1055,18 @@ els.btnImportBackup?.addEventListener("click", () => {
   els.importBackupInput?.click();
 });
 els.importBackupInput?.addEventListener("change", importBackupFromFile);
+els.editModeToggle?.addEventListener("change", (evt) => {
+  const target = evt.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  setEditMode(target.checked);
+});
 els.btnAddManualLog?.addEventListener("click", openManualForm);
 els.btnCancelManual?.addEventListener("click", closeManualForm);
 els.manualLogForm?.addEventListener("submit", saveManualLog);
+els.logEditorForm?.addEventListener("submit", saveLogEdit);
+els.btnCancelLogEdit?.addEventListener("click", () => closeLogEditor());
+els.btnCloseLogEditor?.addEventListener("click", () => closeLogEditor());
+els.logEditorBackdrop?.addEventListener("click", () => closeLogEditor());
 els.manualType?.addEventListener("change", updateManualFormMeta);
 els.manualDate?.addEventListener("input", updateManualFormMeta);
 els.manualStart?.addEventListener("input", updateManualFormMeta);
@@ -815,6 +1103,11 @@ els.btnClearLogFilters?.addEventListener("click", () => {
 els.log?.addEventListener("click", (evt) => {
   const target = evt.target;
   if (!(target instanceof HTMLElement)) return;
+  const editButton = target.closest("[data-edit-log-id]");
+  if (editButton instanceof HTMLElement) {
+    openLogEditor(editButton.dataset.editLogId, editButton.dataset.editLogKind);
+    return;
+  }
   const id = target.dataset.deleteManualId;
   if (!id) return;
   if (!window.confirm("Delete this manual log?")) return;
@@ -1014,6 +1307,7 @@ function importBackupFromFile(evt) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(result.state));
       localStorage.setItem(LAST_IMPORT_KEY, String(Date.now()));
       state = loadState();
+      closeLogEditor({ force: true });
       renderAll();
       renderLastImport();
     } catch {
@@ -1494,18 +1788,21 @@ function renderLogs() {
 
     const sourceLabel = getItemSourceLabel(s);
     const canDeleteManual = s.manual && (s.kind === "work" || s.kind === "break");
+    const editable = editModeEnabled && canEditLogItem(s);
+    const showDeleteManual = editModeEnabled && canDeleteManual;
 
     return `
       <div class="log-item log-row" data-log-id="${s.id}">
-        <div class="log-row-cell"><div class="v">${startStr}</div></div>
-        <div class="log-row-cell"><div class="v">${sessionType}</div></div>
-        <div class="log-row-cell"><div class="v">${endStr}</div></div>
-        <div class="log-row-cell"><div class="v">${durationStr}</div></div>
+        <div class="log-row-cell"><div class="v">${escapeHtml(startStr)}</div></div>
+        <div class="log-row-cell"><div class="v">${escapeHtml(sessionType)}</div></div>
+        <div class="log-row-cell"><div class="v">${escapeHtml(endStr)}</div></div>
+        <div class="log-row-cell"><div class="v">${escapeHtml(durationStr)}</div></div>
         <div class="log-row-cell log-row-source">
-          <span class="v">${sourceLabel}</span>
-          ${canDeleteManual ? `<button class="btn btn-delete-manual" type="button" data-delete-manual-id="${s.id}">Delete</button>` : ""}
+          <span class="v">${escapeHtml(sourceLabel)}</span>
+          ${editable ? `<button class="btn btn-edit-log" type="button" data-edit-log-id="${s.id}" data-edit-log-kind="${s.kind}" aria-label="Edit ${escapeHtml(sessionType)}">Edit</button>` : ""}
+          ${showDeleteManual ? `<button class="btn btn-delete-manual" type="button" data-delete-manual-id="${s.id}">Delete</button>` : ""}
         </div>
-        <div class="log-row-cell log-row-notes"><div class="v">${notesStr}</div></div>
+        <div class="log-row-cell log-row-notes"><div class="v">${escapeHtml(notesStr)}</div></div>
       </div>
     `;
   }).join("");
@@ -1517,6 +1814,7 @@ function updateUI() {
   renderBigTimer();
   renderBreakCountdown();
   renderTotals();
+  renderEditModeUI();
   renderLogs();
   renderLastBackup();
   renderLastImport();
@@ -1544,6 +1842,7 @@ function renderAll() {
   renderBigTimer();
   renderBreakCountdown();
   renderTotals();
+  renderEditModeUI();
   renderLogs();
   renderLastBackup();
   renderLastImport();
