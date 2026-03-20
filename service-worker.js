@@ -1,4 +1,4 @@
-const CACHE_VERSION = "2026-03-13-3";
+const CACHE_VERSION = "2026-03-20-1";
 const CACHE_NAME = `time-tracker-${CACHE_VERSION}`;
 
 const APP_SHELL = [
