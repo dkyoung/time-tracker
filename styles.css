@@ -66,6 +66,14 @@ body{
   .update-banner .btn{
     width:100%;
   }
+
+  .settings-backup-actions{
+    flex-direction:column;
+  }
+
+  .settings-backup-actions .btn{
+    width:100%;
+  }
 }
 .topbar{
   display:flex;
@@ -254,6 +262,35 @@ body{
 .break-skip-controls .btn{
   min-width: auto;
   padding: 8px 12px;
+}
+
+.settings-stack{
+  display:grid;
+  gap:12px;
+  margin-top:12px;
+}
+
+.settings-field{
+  display:grid;
+  gap:6px;
+  color: var(--text);
+  font-weight: 650;
+}
+
+.settings-field select{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 12px;
+  background: rgba(15,23,38,.65);
+  color: var(--text);
+}
+
+.settings-backup-actions{
+  gap:10px;
+}
+
+.settings-backup-actions .btn{
+  flex: 1 1 220px;
 }
 
 .btn{
