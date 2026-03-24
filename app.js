@@ -1,5 +1,5 @@
 "use strict";
-const APP_VERSION = "2026.03.24.4";
+const APP_VERSION = "2026.03.24.5";
 const STORAGE_KEY = "tt_v1";
 const LAST_BACKUP_KEY = "tt_last_backup_ts";
 const LAST_IMPORT_KEY = "tt_last_import_ts";

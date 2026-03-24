@@ -128,6 +128,32 @@ body{
   margin-bottom: 12px;
 }
 
+.panel-toolbar .btn{
+  min-width: 0;
+}
+
+.action-grid{
+  --action-min: 170px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--action-min)), 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.action-grid--compact{
+  --action-min: 160px;
+}
+
+.action-grid--wide{
+  --action-min: 210px;
+}
+
+.action-grid > .btn,
+.action-grid > button{
+  width: 100%;
+  min-width: 0;
+}
+
 .btn.btn-danger{
   border-color: rgba(255, 120, 120, 0.45);
   background: rgba(255, 94, 94, 0.12);
@@ -160,9 +186,6 @@ body{
 }
 
 .primary-session-actions{
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
   margin-bottom: 16px;
 }
 
@@ -200,9 +223,6 @@ body{
 }
 
 .controls{
-  display:flex;
-  flex-wrap: wrap;
-  gap:10px;
   margin-top: 14px;
 }
 
@@ -233,9 +253,7 @@ body{
 }
 
 .break-skip-controls{
-  display:flex;
-  align-items:center;
-  flex-wrap:wrap;
+  display:grid;
   gap:8px;
   margin-top: 10px;
 }
@@ -260,6 +278,13 @@ body{
   padding: 8px 12px;
 }
 
+@media (min-width: 700px){
+  .break-skip-controls{
+    grid-template-columns: auto minmax(220px, 1fr) minmax(140px, auto);
+    align-items: center;
+  }
+}
+
 .settings-stack{
   display:grid;
   gap:12px;
@@ -281,16 +306,7 @@ body{
   color: var(--text);
 }
 
-.settings-backup-actions{
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap:10px;
-  align-items: stretch;
-}
-
 .settings-backup-actions .btn{
-  width: 100%;
-  min-width: 0;
   padding: 9px 12px;
 }
 
@@ -326,8 +342,6 @@ body{
   }
 
   .primary-session-actions{
-    grid-template-columns: 1fr;
-    gap: 10px;
     margin-bottom: 18px;
   }
 
@@ -359,11 +373,7 @@ body{
 }
 
 .weekly-share-actions{
-  display: flex;
-  align-items: center;
-  gap: 8px;
   min-width: 0;
-  flex-wrap: wrap;
 }
 
 .weekly-share-actions button{
@@ -383,6 +393,7 @@ body{
 }
 
 .share-feedback{
+  grid-column: 1 / -1;
   min-height: 1.1em;
   color: var(--muted2);
   font-size: .82rem;
@@ -677,9 +688,7 @@ body{
 }
 
 .logs-head-actions{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
+  min-width: min(100%, 360px);
 }
 
 .manual-form-wrap{
@@ -737,9 +746,6 @@ body{
 
 .manual-actions{
   grid-column: 1 / -1;
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
 }
 
 .log-header{
@@ -1041,14 +1047,10 @@ body{
 
 .settings-row--actions {
   max-width: none;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .settings-row--actions .btn {
-  min-width: 0;
-  width: fit-content;
+  width: 100%;
 }
 
 @media (max-width: 680px) {
