@@ -505,7 +505,7 @@ function scheduleAutomaticBackup() {
   autoBackupTimeoutId = setTimeout(() => {
     autoBackupTimeoutId = null;
     runAutomaticBackup().catch((error) => {
-      console.error("Automatic backup failed:", error);
+      console.error("Auto Backup failed:", error);
     });
   }, AUTO_BACKUP_DEBOUNCE_MS);
 }
@@ -513,13 +513,13 @@ function scheduleAutomaticBackup() {
 async function runAutomaticBackup({ manualTrigger = false } = {}) {
   if (!supportsAutomaticBackup()) {
     setBackupCapabilityState("unsupported");
-    if (manualTrigger) showToast("Automatic backup is unavailable on this browser.");
+    if (manualTrigger) showToast("Auto Backup is not supported on this browser.");
     return { ok: false, error: "unsupported" };
   }
 
   if (!backupFileHandle) {
     setBackupCapabilityState("permission_needed");
-    if (manualTrigger) showToast("Choose a backup file to enable automatic backups.");
+    if (manualTrigger) showToast("Select an Auto Backup file to enable Auto Backup.");
     return { ok: false, error: "missing_handle" };
   }
 
@@ -527,7 +527,7 @@ async function runAutomaticBackup({ manualTrigger = false } = {}) {
     const hasPermission = await ensureBackupWritePermission(backupFileHandle);
     if (!hasPermission) {
       setBackupCapabilityState("permission_needed");
-      if (manualTrigger) showToast("Backup file permission is needed.");
+      if (manualTrigger) showToast("Auto Backup file permission is required.");
       return { ok: false, error: "permission_denied" };
     }
 
@@ -541,14 +541,14 @@ async function runAutomaticBackup({ manualTrigger = false } = {}) {
     setBackupCapabilityState("ready");
     renderLastAutomaticBackup();
 
-    if (manualTrigger) showToast("Backup written successfully.");
+    if (manualTrigger) showToast("Auto Backup completed successfully.");
     return { ok: true };
   } catch (error) {
-    console.error("Automatic backup failed:", error);
+    console.error("Auto Backup failed:", error);
     const needsPermission = error && (error.name === "NotAllowedError" || error.name === "SecurityError" || error.name === "InvalidStateError");
     setBackupCapabilityState(needsPermission ? "permission_needed" : "error");
     if (manualTrigger) {
-      showToast(needsPermission ? "Backup file permission is needed." : "Automatic backup failed.");
+      showToast(needsPermission ? "Auto Backup file permission is required." : "Auto Backup failed.");
     }
     return { ok: false, error: error?.message || "write_failed" };
   }
@@ -557,7 +557,7 @@ async function runAutomaticBackup({ manualTrigger = false } = {}) {
 async function chooseBackupFile() {
   if (!supportsAutomaticBackup()) {
     setBackupCapabilityState("unsupported");
-    showToast("Automatic backup is unavailable on this browser.");
+    showToast("Auto Backup is not supported on this browser.");
     return;
   }
 
@@ -576,12 +576,12 @@ async function chooseBackupFile() {
     setBackupFileName(handle.name || "");
     setBackupCapabilityState("ready");
     renderAutomaticBackupSettings();
-    showToast("Backup destination selected.");
+    showToast("Auto Backup file selected.");
   } catch (error) {
     if (error && error.name === "AbortError") return;
     console.error("Unable to choose backup file:", error);
     setBackupCapabilityState("error");
-    showToast("Unable to choose a backup file.");
+    showToast("Unable to select an Auto Backup file.");
   }
 }
 
@@ -1408,7 +1408,7 @@ els.backupModeSelect?.addEventListener("change", (evt) => {
     target.value = BACKUP_MODE_LOCAL_ONLY;
     setBackupMode(BACKUP_MODE_LOCAL_ONLY);
     setBackupCapabilityState("unsupported");
-    showToast("Automatic backup is unavailable on this browser.");
+    showToast("Auto Backup is not supported on this browser.");
     return;
   }
 
@@ -1428,7 +1428,7 @@ els.btnRunBackupNow?.addEventListener("click", () => {
 });
 els.btnResetBackupStorage?.addEventListener("click", () => {
   resetBackupPreferences();
-  showToast("Automatic backup reset to default local storage.");
+  showToast("Auto Backup reset to default local storage.");
 });
 els.editModeToggle?.addEventListener("change", (evt) => {
   const target = evt.target;
@@ -1577,9 +1577,9 @@ function renderLastAutomaticBackup() {
 }
 
 function getAutoBackupStatusLabel() {
-  if (!supportsAutomaticBackup()) return "Unavailable on this browser";
+  if (!supportsAutomaticBackup()) return "Not supported on this browser";
   if (backupCapabilityState === "error") return "Error";
-  if (backupCapabilityState === "permission_needed") return "File permission needed";
+  if (backupCapabilityState === "permission_needed") return "Permission required";
   return "Ready";
 }
 
@@ -1605,7 +1605,7 @@ function renderAutomaticBackupSettings() {
   }
 
   if (els.backupDestinationLabel) {
-    els.backupDestinationLabel.textContent = backupFileName || "No backup file selected";
+    els.backupDestinationLabel.textContent = backupFileName || "No Auto Backup file selected";
   }
 
   if (els.autoBackupStatusLabel) {
