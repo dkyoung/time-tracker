@@ -95,6 +95,8 @@ const els = {
   importBackupInput: document.getElementById("importBackupInput"),
   lastBackupLabel: document.getElementById("lastBackupLabel"),
   lastImportLabel: document.getElementById("lastImportLabel"),
+  automaticBackupControls: document.getElementById("automaticBackupControls"),
+  automaticBackupUnsupportedMessage: document.getElementById("automaticBackupUnsupportedMessage"),
   backupModeSelect: document.getElementById("backupModeSelect"),
   backupDestinationLabel: document.getElementById("backupDestinationLabel"),
   btnChooseBackupFile: document.getElementById("btnChooseBackupFile"),
@@ -1582,10 +1584,24 @@ function getAutoBackupStatusLabel() {
 }
 
 function renderAutomaticBackupSettings() {
+  const automaticBackupSupported = supportsAutomaticBackup();
+
+  if (els.automaticBackupControls) {
+    els.automaticBackupControls.hidden = !automaticBackupSupported;
+  }
+
+  if (els.automaticBackupUnsupportedMessage) {
+    els.automaticBackupUnsupportedMessage.hidden = automaticBackupSupported;
+  }
+
+  if (!automaticBackupSupported) {
+    return;
+  }
+
   if (els.backupModeSelect) {
     els.backupModeSelect.value = backupMode;
     const autoOption = Array.from(els.backupModeSelect.options).find((option) => option.value === BACKUP_MODE_AUTO_FILE);
-    if (autoOption) autoOption.disabled = !supportsAutomaticBackup();
+    if (autoOption) autoOption.disabled = !automaticBackupSupported;
   }
 
   if (els.backupDestinationLabel) {
@@ -1597,11 +1613,11 @@ function renderAutomaticBackupSettings() {
   }
 
   if (els.btnChooseBackupFile) {
-    els.btnChooseBackupFile.disabled = !supportsAutomaticBackup();
+    els.btnChooseBackupFile.disabled = !automaticBackupSupported;
   }
 
   if (els.btnRunBackupNow) {
-    els.btnRunBackupNow.disabled = !supportsAutomaticBackup() || (!backupFileHandle && !canUseAutomaticBackup());
+    els.btnRunBackupNow.disabled = !automaticBackupSupported || (!backupFileHandle && !canUseAutomaticBackup());
   }
 }
 
