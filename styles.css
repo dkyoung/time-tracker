@@ -68,11 +68,7 @@ body{
   }
 
   .settings-backup-actions{
-    flex-direction:column;
-  }
-
-  .settings-backup-actions .btn{
-    width:100%;
+    grid-template-columns: 1fr;
   }
 }
 .topbar{
@@ -286,11 +282,16 @@ body{
 }
 
 .settings-backup-actions{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap:10px;
+  align-items: stretch;
 }
 
 .settings-backup-actions .btn{
-  flex: 1 1 220px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
 }
 
 .settings-inline-note{
