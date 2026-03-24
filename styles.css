@@ -849,6 +849,23 @@ body{
   line-height: 1.4;
 }
 
+#skipBreakReason{
+  width: 100%;
+  margin-top: 8px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px;
+  background: rgba(15,23,38,.65);
+  color: var(--text);
+  resize: vertical;
+  min-height: 84px;
+}
+
+#skipBreakReasonError{
+  margin-top: 6px;
+  min-height: 18px;
+}
+
 .modal-actions{
   display: grid;
   grid-template-columns: 1fr;
