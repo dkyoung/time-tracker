@@ -48,7 +48,7 @@
       <section class="hero">
         <div class="hero-left">
           <div class="timer-wrap">
-            <div class="primary-session-actions" aria-label="Primary session actions">
+            <div class="primary-session-actions action-grid action-grid--compact" aria-label="Primary session actions">
               <button id="btnClockIn" class="btn primary" type="button">Clock In</button>
               <button id="btnClockOut" class="btn" type="button">Clock Out</button>
             </div>
@@ -61,7 +61,7 @@
             <div id="breakSkipSummary" class="active-session-text">No skipped breaks today.</div>
           </div>
 
-          <div class="controls">
+          <div class="controls action-grid action-grid--compact">
             <button id="btnStartBreak" class="btn" type="button">Start Break</button>
             <button id="btnEndBreak" class="btn" type="button">End Break</button>
           </div>
@@ -85,7 +85,7 @@
 
         <div class="hero-right">
           <div class="format-toggle">
-            <div class="weekly-share-actions">
+            <div class="weekly-share-actions action-grid action-grid--compact">
               <button id="btnShareWeek" type="button">Share Weekly Hours</button>
               <button id="btnCopyWeek" type="button">Copy Weekly Hours to Clipboard</button>
               <span id="shareFeedback" class="share-feedback" role="status" aria-live="polite"></span>
@@ -126,7 +126,7 @@
           <h2 class="h2">Session Logs</h2>
           <div class="muted">Your saved sessions live on this device. Use Settings → Export Manual Backup to save a copy.</div>
         </div>
-        <div class="logs-head-actions">
+        <div class="logs-head-actions action-grid action-grid--compact">
           <button id="btnAddManualLog" class="btn" type="button">Add Manual Log</button>
           <button id="btnClearLogs" class="btn btn-danger" type="button">Clear Logs</button>
         </div>
@@ -170,7 +170,7 @@
             <div id="manualHint" class="muted"></div>
             <div id="manualError" class="error" role="alert"></div>
           </div>
-          <div class="manual-actions">
+          <div class="manual-actions action-grid action-grid--compact">
             <button class="btn primary" type="submit">Save Manual Log</button>
             <button id="btnCancelManual" class="btn" type="button">Cancel</button>
           </div>
@@ -252,7 +252,7 @@
                 </select>
               </label>
               <div class="muted">Auto Backup File: <span id="backupDestinationLabel">No Auto Backup file selected</span></div>
-              <div class="settings-row settings-row--actions settings-backup-actions">
+              <div class="settings-row settings-row--actions settings-backup-actions action-grid action-grid--wide">
                 <button id="btnChooseBackupFile" class="btn" type="button">Select Auto Backup File</button>
                 <button id="btnRunBackupNow" class="btn" type="button">Run Auto Backup Now</button>
                 <button id="btnResetBackupStorage" class="btn" type="button">Reset Auto Backup</button>
@@ -274,7 +274,7 @@
             Create or restore backups manually using a JSON file. You can save it to Files, iCloud Drive, or any cloud storage.
           </div>
        
-          <div class="settings-row settings-row--actions">
+          <div class="settings-row settings-row--actions action-grid action-grid--compact">
             <button id="btnExportBackup" class="btn" type="button">Export Manual Backup</button>
             <button id="btnImportBackup" class="btn" type="button">Import Manual Backup</button>
             <input id="importBackupInput" type="file" accept=".json,application/json" hidden />
@@ -360,7 +360,7 @@
         </label>
         <div id="logEditorMeta" class="manual-meta modal-meta"></div>
         <div id="logEditorError" class="error" role="alert" aria-live="assertive"></div>
-        <div class="manual-actions modal-actions-inline">
+        <div class="manual-actions action-grid action-grid--compact modal-actions-inline">
           <button id="btnSaveLogEdit" class="btn primary" type="submit">Save</button>
           <button id="btnCancelLogEdit" class="btn" type="button">Cancel</button>
         </div>
