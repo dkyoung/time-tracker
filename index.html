@@ -124,7 +124,7 @@
       <section class="logs-head">
         <div>
           <h2 class="h2">Session Logs</h2>
-          <div class="muted">Your saved sessions live on this device. Use Settings → Export Backup to save a copy.</div>
+          <div class="muted">Your saved sessions live on this device. Use Settings → Export Manual Backup to save a copy.</div>
         </div>
         <div class="logs-head-actions">
           <button id="btnAddManualLog" class="btn" type="button">Add Manual Log</button>
@@ -227,7 +227,7 @@
       <section class="settings-card">
         <h2 class="h2">Settings</h2>
         <div class="muted">
-          Manage display preferences and backup data.
+          Manage display preferences and manual/auto backup data.
         </div>
         
 <section class="settings-section" aria-label="App information">
@@ -237,50 +237,50 @@
         
         <hr class="settings-separator" />
 
-        <section class="settings-section" aria-label="Backup storage settings">
-          <h3 class="h3">Backup Storage</h3>
+        <section class="settings-section" aria-label="Auto Backup settings">
+          <h3 class="h3">Auto Backup</h3>
           <div class="muted">
-            Local storage stays the app's main store.
+            Automatically saves your data to a selected file when supported by your browser.
           </div>
           <div class="settings-stack">
             <div id="automaticBackupControls">
               <label class="settings-field" for="backupModeSelect">
-                <span>Backup Mode</span>
+                <span>Auto Backup Mode</span>
                 <select id="backupModeSelect">
                   <option value="local_only">Default local-only</option>
-                  <option value="auto_file">Automatic backup to selected file</option>
+                  <option value="auto_file">Auto Backup to selected file</option>
                 </select>
               </label>
-              <div class="muted">Backup Destination: <span id="backupDestinationLabel">No backup file selected</span></div>
+              <div class="muted">Auto Backup File: <span id="backupDestinationLabel">No Auto Backup file selected</span></div>
               <div class="settings-row settings-row--actions settings-backup-actions">
-                <button id="btnChooseBackupFile" class="btn" type="button">Choose Backup File</button>
-                <button id="btnRunBackupNow" class="btn" type="button">Run Backup Now</button>
-                <button id="btnResetBackupStorage" class="btn" type="button">Reset to Default Storage</button>
+                <button id="btnChooseBackupFile" class="btn" type="button">Select Auto Backup File</button>
+                <button id="btnRunBackupNow" class="btn" type="button">Run Auto Backup Now</button>
+                <button id="btnResetBackupStorage" class="btn" type="button">Reset Auto Backup</button>
               </div>
-              <div class="muted">Last automatic backup: <span id="lastAutoBackupLabel">Never</span></div>
-              <div class="muted">Auto backup status: <span id="autoBackupStatusLabel">Unavailable on this browser</span></div>
+              <div class="muted">Last Auto Backup: <span id="lastAutoBackupLabel">Never</span></div>
+              <div class="muted">Auto Backup Status: <span id="autoBackupStatusLabel">Not supported on this browser</span></div>
             </div>
             <div id="automaticBackupUnsupportedMessage" class="settings-inline-note" hidden>
-              This browser does not support direct file access for automatic backup selection. To save backups here, use Export Backup and store the JSON file in Files, iCloud Drive, or another cloud storage app.
+              This browser does not support Auto Backup to a file. Use Manual Backup instead.
             </div>
           </div>
         </section>
 
         <hr class="settings-separator" />
 
-        <section class="settings-section" aria-label="Backup settings">
-          <h3 class="h3">Backup</h3>
+        <section class="settings-section" aria-label="Manual Backup settings">
+          <h3 class="h3">Manual Backup</h3>
           <div class="muted">
-            Export creates a .json file you can save to Files (iCloud Drive) or any cloud app. Import restores from a saved backup.
+            Create or restore backups manually using a JSON file. You can save it to Files, iCloud Drive, or any cloud storage.
           </div>
        
           <div class="settings-row settings-row--actions">
-            <button id="btnExportBackup" class="btn" type="button">Export Backup</button>
-            <button id="btnImportBackup" class="btn" type="button">Import Backup</button>
+            <button id="btnExportBackup" class="btn" type="button">Export Manual Backup</button>
+            <button id="btnImportBackup" class="btn" type="button">Import Manual Backup</button>
             <input id="importBackupInput" type="file" accept=".json,application/json" hidden />
           </div>
-          <div class="muted">Last backup: <span id="lastBackupLabel">Never</span></div>
-          <div class="muted">Last Imported from Backup: <span id="lastImportLabel">Never</span></div>
+          <div class="muted">Last Manual Backup: <span id="lastBackupLabel">Never</span></div>
+          <div class="muted">Last Manual Import: <span id="lastImportLabel">Never</span></div>
         </section>
 
         <hr class="settings-separator" />
