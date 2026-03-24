@@ -308,6 +308,9 @@
     <div class="modal-card">
       <h3 id="skipBreakModalTitle">Skip this break?</h3>
       <p id="skipBreakModalBody">You are about to skip Break 1 - 15m for today.</p>
+      <label for="skipBreakReason">Reason for skipping</label>
+      <textarea id="skipBreakReason" rows="3" placeholder="Example: Workload was too heavy"></textarea>
+      <div id="skipBreakReasonError" class="error" aria-live="polite"></div>
       <div class="modal-actions">
         <button id="btnCancelSkipBreak" class="btn" type="button">Cancel</button>
         <button id="btnConfirmSkipBreak" class="btn primary" type="button">Yes, skip break</button>

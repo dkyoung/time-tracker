@@ -64,6 +64,8 @@ const els = {
   skipBreakModal: document.getElementById("skipBreakModal"),
   skipBreakModalBackdrop: document.getElementById("skipBreakModalBackdrop"),
   skipBreakModalBody: document.getElementById("skipBreakModalBody"),
+  skipBreakReason: document.getElementById("skipBreakReason"),
+  skipBreakReasonError: document.getElementById("skipBreakReasonError"),
   btnCancelSkipBreak: document.getElementById("btnCancelSkipBreak"),
   btnConfirmSkipBreak: document.getElementById("btnConfirmSkipBreak"),
   appToast: document.getElementById("appToast"),
@@ -1081,7 +1083,7 @@ function endBreak() {
   renderAll();
 }
 
-function applySkipBreak(selectedSequence) {
+function applySkipBreak(selectedSequence, note) {
   const activeSession = getActiveSession();
   if (!activeSession) return;
 
@@ -1109,6 +1111,7 @@ function applySkipBreak(selectedSequence) {
     breakSequence: selectedSequence,
     endedActiveBreak,
     manual: false,
+    notes: note,
     message: `${getBreakShortLabel(selectedSequence)} skipped${endedActiveBreak ? " and active break ended" : ""}`,
     createdAt: nowMs(),
   });
@@ -1124,17 +1127,43 @@ function resolveSkipBreakSelection() {
   return selectedValue === "next" ? getNextBreakSequence(new Date()) : Number(selectedValue);
 }
 
+function setSkipBreakReasonError(message) {
+  if (!els.skipBreakReasonError) return;
+  els.skipBreakReasonError.textContent = message || "";
+}
+
+function resetSkipBreakModalForm() {
+  if (els.skipBreakReason) {
+    els.skipBreakReason.value = "";
+  }
+  setSkipBreakReasonError("");
+}
+
+function validateSkipBreakReason() {
+  const note = (els.skipBreakReason?.value || "").trim();
+  if (!note) {
+    setSkipBreakReasonError("Please enter a reason before skipping this break.");
+    els.skipBreakReason?.focus();
+    return null;
+  }
+  setSkipBreakReasonError("");
+  return note;
+}
+
 function openSkipBreakModal(sequence) {
   pendingSkipBreakSequence = sequence;
   els.skipBreakModalBody.textContent = `You are about to skip ${getBreakPromptLabel(sequence)} for today.`;
+  resetSkipBreakModalForm();
   els.skipBreakModal.hidden = false;
   els.skipBreakModal.setAttribute("aria-hidden", "false");
   els.btnConfirmSkipBreak.disabled = false;
+  els.skipBreakReason?.focus();
 }
 
 function closeSkipBreakModal() {
   pendingSkipBreakSequence = null;
   skipBreakSubmitInFlight = false;
+  resetSkipBreakModalForm();
   els.skipBreakModal.hidden = true;
   els.skipBreakModal.setAttribute("aria-hidden", "true");
   els.btnConfirmSkipBreak.disabled = false;
@@ -1162,6 +1191,9 @@ function promptSkipBreak() {
 
 function confirmSkipBreak() {
   if (skipBreakSubmitInFlight || !Number.isFinite(pendingSkipBreakSequence)) return;
+  const note = validateSkipBreakReason();
+  if (!note) return;
+
   skipBreakSubmitInFlight = true;
   els.btnConfirmSkipBreak.disabled = true;
 
@@ -1175,7 +1207,7 @@ function confirmSkipBreak() {
     return;
   }
 
-  applySkipBreak(selectedSequence);
+  applySkipBreak(selectedSequence, note);
   closeSkipBreakModal();
   showToast(`Break ${selectedSequence} skipped`);
 }
