@@ -1,5 +1,5 @@
 "use strict";
-const APP_VERSION = "2026.03.24.5";
+const APP_VERSION = "2026.03.25.1";
 const STORAGE_KEY = "tt_v1";
 const LAST_BACKUP_KEY = "tt_last_backup_ts";
 const LAST_IMPORT_KEY = "tt_last_import_ts";
@@ -192,6 +192,7 @@ function loadState() {
 
 function saveState(s) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  markLogsDirty();
 }
 
 function loadEditMode() {
@@ -215,6 +216,10 @@ let state = loadState();
 let displayMode = "time"; // "time" or "decimal"
 let editModeEnabled = loadEditMode();
 const logFilters = { type: "all", source: "all", date: "", notes: "" };
+let activeTab = "dashboard";
+const tabDirtyState = { logs: true, settings: true };
+let logsCache = null;
+let logsCacheSignature = "";
 let pendingSkipBreakSequence = null;
 let skipBreakSubmitInFlight = false;
 let toastTimeoutId = null;
@@ -453,13 +458,15 @@ function buildBackupPayload() {
 function setBackupCapabilityState(nextState) {
   backupCapabilityState = nextState;
   localStorage.setItem(BACKUP_CAPABILITY_STATE_KEY, nextState);
-  renderAutomaticBackupSettings();
+  markSettingsDirty();
+  renderActiveTab();
 }
 
 function setBackupMode(nextMode) {
   backupMode = nextMode === BACKUP_MODE_AUTO_FILE ? BACKUP_MODE_AUTO_FILE : BACKUP_MODE_LOCAL_ONLY;
   localStorage.setItem(BACKUP_MODE_KEY, backupMode);
-  renderAutomaticBackupSettings();
+  markSettingsDirty();
+  renderActiveTab();
 }
 
 function setBackupFileName(nextName) {
@@ -472,7 +479,8 @@ function setBackupFileName(nextName) {
 
   // File handles are not safely serializable into localStorage.
   localStorage.removeItem(BACKUP_FILE_HANDLE_KEY);
-  renderAutomaticBackupSettings();
+  markSettingsDirty();
+  renderActiveTab();
 }
 
 function canUseAutomaticBackup() {
@@ -539,7 +547,8 @@ async function runAutomaticBackup({ manualTrigger = false } = {}) {
     localStorage.setItem(LAST_AUTO_BACKUP_KEY, timestamp);
     setBackupFileName(backupFileHandle.name || backupFileName);
     setBackupCapabilityState("ready");
-    renderLastAutomaticBackup();
+    markSettingsDirty();
+    renderActiveTab();
 
     if (manualTrigger) showToast("Auto Backup completed successfully.");
     return { ok: true };
@@ -575,7 +584,8 @@ async function chooseBackupFile() {
     backupFileHandle = handle;
     setBackupFileName(handle.name || "");
     setBackupCapabilityState("ready");
-    renderAutomaticBackupSettings();
+    markSettingsDirty();
+    renderActiveTab();
     showToast("Auto Backup file selected.");
   } catch (error) {
     if (error && error.name === "AbortError") return;
@@ -596,7 +606,8 @@ function resetBackupPreferences() {
   setBackupFileName("");
   localStorage.removeItem(LAST_AUTO_BACKUP_KEY);
   setBackupCapabilityState(supportsAutomaticBackup() ? "ready" : "unsupported");
-  renderLastAutomaticBackup();
+  markSettingsDirty();
+  renderActiveTab();
 }
 
 function ensureSkippedBreaksForDate(dateKey = getDateKey()) {
@@ -686,7 +697,8 @@ function setEditMode(enabled) {
   editModeEnabled = nextValue;
   saveEditMode(editModeEnabled);
   renderEditModeUI();
-  renderLogs();
+  markLogsDirty();
+  renderActiveTab();
 }
 
 function renderEditModeUI() {
@@ -962,6 +974,7 @@ function saveLogEdit(evt) {
 // Tabs
 // ---------------------------
 function setTab(name) {
+  activeTab = name;
   const isDash = name === "dashboard";
   const isLogs = name === "logs";
   const isSettings = name === "settings";
@@ -979,17 +992,7 @@ function setTab(name) {
   els.settingsPanel?.classList.toggle("is-active", isSettings);
 
   renderEditModeUI();
-
-  if (isLogs) {
-    renderLogs();
-  }
-
-  if (isSettings) {
-    renderAutomaticBackupSettings();
-    renderLastAutomaticBackup();
-    renderLastBackup();
-    renderLastImport();
-  }
+  renderActiveTab();
 }
 
 let tabListenersAttached = false;
@@ -1448,19 +1451,23 @@ els.manualStart?.addEventListener("input", updateManualFormMeta);
 els.manualEnd?.addEventListener("input", updateManualFormMeta);
 els.logFilterType?.addEventListener("change", (evt) => {
   logFilters.type = evt.target.value;
-  renderLogs();
+  markLogsDirty();
+  renderActiveTab();
 });
 els.logFilterSource?.addEventListener("change", (evt) => {
   logFilters.source = evt.target.value;
-  renderLogs();
+  markLogsDirty();
+  renderActiveTab();
 });
 els.logFilterDate?.addEventListener("change", (evt) => {
   logFilters.date = evt.target.value;
-  renderLogs();
+  markLogsDirty();
+  renderActiveTab();
 });
 els.logFilterNotes?.addEventListener("input", (evt) => {
   logFilters.notes = evt.target.value;
-  renderLogs();
+  markLogsDirty();
+  renderActiveTab();
 });
 els.btnClearLogFilters?.addEventListener("click", () => {
   logFilters.type = "all";
@@ -1473,7 +1480,8 @@ els.btnClearLogFilters?.addEventListener("click", () => {
   if (els.logFilterDate) els.logFilterDate.value = "";
   if (els.logFilterNotes) els.logFilterNotes.value = "";
 
-  renderLogs();
+  markLogsDirty();
+  renderActiveTab();
 });
 els.log?.addEventListener("click", (evt) => {
   const target = evt.target;
@@ -1644,7 +1652,8 @@ function exportBackup() {
   URL.revokeObjectURL(url);
 
   localStorage.setItem(LAST_BACKUP_KEY, String(Date.now()));
-  renderLastBackup();
+  markSettingsDirty();
+  renderActiveTab();
 }
 
 function validateAndMigrateBackupPayload(payload) {
@@ -1736,8 +1745,10 @@ function importBackupFromFile(evt) {
       state = loadState();
       closeLogEditor({ force: true });
       scheduleAutomaticBackup();
+      markLogsDirty();
       renderAll();
-      renderLastImport();
+      markSettingsDirty();
+      renderActiveTab();
     } catch {
       window.alert("Invalid backup file.");
     } finally {
@@ -2156,27 +2167,46 @@ function applyLogFilters(items, filters) {
 }
 
 function renderLogs() {
+  const logsRenderStarted = performance.now();
   renderEditModeUI();
 
-  const items = buildCombinedLogItems().sort((a, b) => {
-    if (b.startMs !== a.startMs) return b.startMs - a.startMs;
-    const aEnd = a.endMs == null ? Number.MAX_SAFE_INTEGER : a.endMs;
-    const bEnd = b.endMs == null ? Number.MAX_SAFE_INTEGER : b.endMs;
-    if (bEnd !== aEnd) return bEnd - aEnd;
-    const aCreated = Number.isFinite(a.createdAt) ? a.createdAt : 0;
-    const bCreated = Number.isFinite(b.createdAt) ? b.createdAt : 0;
-    if (bCreated !== aCreated) return bCreated - aCreated;
-    return String(b.id).localeCompare(String(a.id));
-  });
-
-  if (items.length === 0) {
+  if (state.sessions.length === 0 && state.breaks.length === 0 && (state.auditLogs?.length ?? 0) === 0) {
     els.log.innerHTML = `<div class="muted">No sessions yet.</div>`;
+    console.debug("[perf] logs render ms", Math.round(performance.now() - logsRenderStarted));
     return;
   }
 
-  const filtered = applyLogFilters(items, logFilters);
+  const signature = JSON.stringify({
+    sessionsCount: state.sessions.length,
+    breaksCount: state.breaks.length,
+    auditCount: state.auditLogs?.length ?? 0,
+    sessionsLastCreatedAt: state.sessions.reduce((max, item) => Math.max(max, item.createdAt ?? item.startMs ?? 0), 0),
+    breaksLastCreatedAt: state.breaks.reduce((max, item) => Math.max(max, item.createdAt ?? item.startMs ?? 0), 0),
+    auditLastCreatedAt: (state.auditLogs ?? []).reduce((max, item) => Math.max(max, item.createdAt ?? item.timestampMs ?? 0), 0),
+    filters: logFilters,
+    editModeEnabled,
+    displayMode,
+  });
+
+  if (!logsCache || logsCacheSignature !== signature) {
+    const items = buildCombinedLogItems().sort((a, b) => {
+      if (b.startMs !== a.startMs) return b.startMs - a.startMs;
+      const aEnd = a.endMs == null ? Number.MAX_SAFE_INTEGER : a.endMs;
+      const bEnd = b.endMs == null ? Number.MAX_SAFE_INTEGER : b.endMs;
+      if (bEnd !== aEnd) return bEnd - aEnd;
+      const aCreated = Number.isFinite(a.createdAt) ? a.createdAt : 0;
+      const bCreated = Number.isFinite(b.createdAt) ? b.createdAt : 0;
+      if (bCreated !== aCreated) return bCreated - aCreated;
+      return String(b.id).localeCompare(String(a.id));
+    });
+    logsCache = applyLogFilters(items, logFilters);
+    logsCacheSignature = signature;
+  }
+
+  const filtered = logsCache;
   if (filtered.length === 0) {
     els.log.innerHTML = `<div class="muted">No matching records.</div>`;
+    console.debug("[perf] logs render ms", Math.round(performance.now() - logsRenderStarted));
     return;
   }
 
@@ -2239,18 +2269,60 @@ function renderLogs() {
   }).join("");
 
   els.log.innerHTML = html;
+  console.debug("[perf] logs render ms", Math.round(performance.now() - logsRenderStarted));
+}
+
+function isLogsTabActive() {
+  return activeTab === "logs";
+}
+
+function isSettingsTabActive() {
+  return activeTab === "settings";
+}
+
+function markLogsDirty() {
+  tabDirtyState.logs = true;
+  logsCache = null;
+  logsCacheSignature = "";
+}
+
+function markSettingsDirty() {
+  tabDirtyState.settings = true;
+}
+
+function refreshLiveTimeUI() {
+  renderBigTimer();
+  renderBreakCountdown();
+}
+
+function refreshSummaryUI() {
+  renderTotals();
+  renderButtons();
+  renderStatus();
+}
+
+function renderActiveTab() {
+  if (isLogsTabActive() && tabDirtyState.logs) {
+    renderLogs();
+    tabDirtyState.logs = false;
+  }
+
+  if (isSettingsTabActive() && tabDirtyState.settings) {
+    renderAutomaticBackupSettings();
+    renderLastAutomaticBackup();
+    renderLastBackup();
+    renderLastImport();
+    tabDirtyState.settings = false;
+  }
 }
 
 function updateUI() {
-  renderBigTimer();
-  renderBreakCountdown();
-  renderTotals();
+  refreshLiveTimeUI();
+  refreshSummaryUI();
   renderEditModeUI();
-  renderLogs();
-  renderAutomaticBackupSettings();
-  renderLastAutomaticBackup();
-  renderLastBackup();
-  renderLastImport();
+  markLogsDirty();
+  markSettingsDirty();
+  renderActiveTab();
 }
 
 function initializeDefaultLogDateFilter() {
@@ -2270,17 +2342,10 @@ function renderAll() {
   if (didCleanupSkips) saveState(state);
 
   renderHeader();
-  renderButtons();
-  renderStatus();
-  renderBigTimer();
-  renderBreakCountdown();
-  renderTotals();
+  refreshSummaryUI();
+  refreshLiveTimeUI();
   renderEditModeUI();
-  renderLogs();
-  renderAutomaticBackupSettings();
-  renderLastAutomaticBackup();
-  renderLastBackup();
-  renderLastImport();
+  renderActiveTab();
 
   if (els.appVersionLabel) {
     els.appVersionLabel.textContent = APP_VERSION;
@@ -2289,16 +2354,13 @@ function renderAll() {
 
 // Big timer should always be live, even if user stays on Logs tab.
 setInterval(() => {
-  renderBigTimer();
-  renderBreakCountdown();
-  renderTotals();
-  // If an active session is running, the "End: Active" duration should tick in logs too.
-  // This is cheap enough for small lists.
-  renderLogs();
+  refreshLiveTimeUI();
+  refreshSummaryUI();
 }, 1000);
 
 // Init
 function initializeApp() {
+  const appInitStarted = performance.now();
   if (backupMode === BACKUP_MODE_AUTO_FILE && !backupFileHandle) {
     backupCapabilityState = supportsAutomaticBackup() ? "permission_needed" : "unsupported";
   } else if (backupMode === BACKUP_MODE_LOCAL_ONLY) {
@@ -2312,8 +2374,15 @@ function initializeApp() {
 
   attachTabListeners();
   initializeDefaultLogDateFilter();
+  activeTab = "dashboard";
+  console.debug("[perf] app init start");
   renderAll();
   setTab("dashboard");
+  console.debug("[perf] first visible render ms", Math.round(performance.now() - appInitStarted));
+  setTimeout(() => {
+    markSettingsDirty();
+    renderActiveTab();
+  }, 0);
 }
 
 if (document.readyState === "loading") {
