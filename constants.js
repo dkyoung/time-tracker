@@ -1,0 +1,14 @@
+export const APP_VERSION = "2026.03.25.2";
+export const STORAGE_KEY = "tt_v1";
+export const LAST_BACKUP_KEY = "tt_last_backup_ts";
+export const LAST_IMPORT_KEY = "tt_last_import_ts";
+export const EDIT_MODE_KEY = "tt_edit_mode";
+export const BACKUP_MODE_KEY = "tt_backup_mode";
+export const LAST_AUTO_BACKUP_KEY = "tt_last_auto_backup_ts";
+export const BACKUP_FILE_NAME_KEY = "tt_backup_file_name";
+export const BACKUP_FILE_HANDLE_KEY = "tt_backup_file_handle";
+export const BACKUP_CAPABILITY_STATE_KEY = "tt_backup_capability_state";
+export const BREAK_PLAN_MINUTES = [15, 30, 15];
+export const BACKUP_MODE_LOCAL_ONLY = "local_only";
+export const BACKUP_MODE_AUTO_FILE = "auto_file";
+export const AUTO_BACKUP_DEBOUNCE_MS = 750;

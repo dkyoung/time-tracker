@@ -1,19 +1,10 @@
 "use strict";
-const APP_VERSION = "2026.03.25.1";
-const STORAGE_KEY = "tt_v1";
-const LAST_BACKUP_KEY = "tt_last_backup_ts";
-const LAST_IMPORT_KEY = "tt_last_import_ts";
-const EDIT_MODE_KEY = "tt_edit_mode";
-const BACKUP_MODE_KEY = "tt_backup_mode";
-const LAST_AUTO_BACKUP_KEY = "tt_last_auto_backup_ts";
-const BACKUP_FILE_NAME_KEY = "tt_backup_file_name";
-const BACKUP_FILE_HANDLE_KEY = "tt_backup_file_handle";
-const BACKUP_CAPABILITY_STATE_KEY = "tt_backup_capability_state";
-const BREAK_PLAN_MINUTES = [15, 30, 15];
-const BACKUP_MODE_LOCAL_ONLY = "local_only";
-const BACKUP_MODE_AUTO_FILE = "auto_file";
-const AUTO_BACKUP_DEBOUNCE_MS = 750;
-
+import {
+  APP_VERSION, STORAGE_KEY, LAST_BACKUP_KEY, LAST_IMPORT_KEY, EDIT_MODE_KEY,
+  BACKUP_MODE_KEY, LAST_AUTO_BACKUP_KEY, BACKUP_FILE_NAME_KEY, BACKUP_FILE_HANDLE_KEY,
+  BACKUP_CAPABILITY_STATE_KEY, BREAK_PLAN_MINUTES, BACKUP_MODE_LOCAL_ONLY,
+  BACKUP_MODE_AUTO_FILE, AUTO_BACKUP_DEBOUNCE_MS,
+} from "./constants.js";
 const els = {
   // header
   todayLabel: document.getElementById("todayLabel"),
