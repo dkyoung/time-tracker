@@ -1,4 +1,4 @@
-const CACHE_VERSION = "2026.03.25.1";
+const CACHE_VERSION = "2026.03.25.2";
 const CACHE_NAME = `time-tracker-${CACHE_VERSION}`;
 
 const APP_SHELL = [
@@ -6,6 +6,14 @@ const APP_SHELL = [
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./constants.js",
+  "./state.js",
+  "./utils.js",
+  "./render.js",
+  "./logs.js",
+  "./backup.js",
+  "./modals.js",
+  "./actions.js",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
